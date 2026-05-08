@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# MC runs
+runs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (API keys!)
+run/config/mcaiassistant-secrets.json
+
+# Logs
+logs/
+*.log
+
+# Gradle wrapper
+gradle/wrapper/gradle-wrapper.properties
