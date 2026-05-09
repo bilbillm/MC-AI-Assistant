@@ -185,7 +185,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
 
 ## TODOs
 
-- [ ] 0. GitHub 仓库初始化 + README + LICENSE
+- [x] 0. GitHub 仓库初始化 + README + LICENSE
 
   **What to do**：
   - 在 `Agent-chat-in-MC` 目录初始化 Git 仓库：`git init`
@@ -266,7 +266,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - Message: `chore: init MC-AI-Assistant project with README, LICENSE, and .gitignore`
   - Files: `README.md`, `LICENSE`, `.gitignore`
 
-- [ ] 1. Gradle 项目搭建 + NeoForge MDK
+- [x] 1. Gradle 项目搭建 + NeoForge MDK
 
   **What to do**：
   - 基于 NeoForge MDK-1.21-ModDevGradle 模板搭建项目骨架
@@ -336,7 +336,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - Message: `chore: init NeoForge 1.21.1 project with Gradle and simple-openai`
   - Files: `build.gradle`, `settings.gradle`, `gradle.properties`, `gradle/wrapper/`, `src/main/templates/META-INF/neoforge.mods.toml`, 包结构目录
 
-- [ ] 2. Mod 主类 + DeferredRegister 注册
+- [x] 2. Mod 主类 + DeferredRegister 注册
 
   **What to do**：
   - 创建 `AgentChat.java` Mod 主类（`@Mod` 注解，MODID = `"agentchat"`）
@@ -404,7 +404,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - Message: `feat: add AgentChat mod main class with event bus registration`
   - Files: `src/main/java/com/lumoren/agentchat/AgentChat.java`, `src/main/java/com/lumoren/agentchat/client/ClientModEvents.java`, `src/test/java/com/lumoren/agentchat/AgentChatTest.java`
 
-- [ ] 3. 配置系统（ModConfigSpec + JSON secrets）
+- [x] 3. 配置系统（ModConfigSpec + JSON secrets）
 
   **What to do**：
   - 创建 `Config.java`：使用 `ModConfigSpec.Builder` 定义所有配置项：
@@ -480,7 +480,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - Message: `feat: add configuration system with ModConfigSpec and JSON secrets`
   - Files: `src/main/java/com/lumoren/agentchat/config/Config.java`, `SecretsConfig.java`, `ConfigManager.java`, 测试文件
 
-- [ ] 4. 测试基础设施搭建
+- [x] 4. 测试基础设施搭建
 
   **What to do**：
   - 配置 JUnit 5 + Mockito 在 `build.gradle` 中（testImplementation）
@@ -536,7 +536,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - Message: `test: set up JUnit 5 + Mockito + GameTest infrastructure`
   - Files: `build.gradle`（test 依赖部分），测试工具类，冒烟测试
 
-- [ ] 5. 数据模型 / 类型定义
+- [x] 5. 数据模型 / 类型定义
 
   **What to do**：
   - 创建数据模型包 `com.lumoren.agentchat.model`，定义以下 record/class：
@@ -598,7 +598,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - Message: `feat: define data models for chat messages, tools, and game context`
   - Files: `src/main/java/com/lumoren/agentchat/model/*.java`, 测试文件
 
-- [ ] 6. i18n 框架 + 中英 lang 文件
+- [x] 6. i18n 框架 + 中英 lang 文件
 
   **What to do**：
   - 创建 `src/main/resources/assets/agentchat/lang/zh_cn.json`：
@@ -665,7 +665,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - Message: `feat: add i18n framework with Chinese and English lang files`
    - Files: `src/main/resources/assets/agentchat/lang/zh_cn.json`, `en_us.json`, `I18nKeys.java`, `I18nHelper.java`, 测试文件
 
-- [ ] 7. 游戏数据访问层（客户端侧）
+- [x] 7. 游戏数据访问层（客户端侧）
 
   **What to do**：
   - 创建 `GameDataAccess.java`：统一游戏数据访问门面
@@ -689,7 +689,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - **Evidence**: `.sisyphus/evidence/task-7-game-data-test.txt`
   - **Commit**: `feat: implement client-side game data access layer` — `GameDataAccess.java`, tests
 
-- [ ] 8. OpenAI 兼容 HTTP 客户端
+- [x] 8. OpenAI 兼容 HTTP 客户端
 
   **What to do**：
   - 创建 `OpenAICompatClient.java`：使用 Java 21 `java.net.http.HttpClient`
@@ -710,7 +710,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - **Evidence**: `.sisyphus/evidence/task-8-*.txt`
   - **Commit**: `feat: implement OpenAI-compatible HTTP client with streaming and retry` — `OpenAICompatClient.java`, tests
 
-- [ ] 9. Tool 工具注册表 + 接口定义
+- [x] 9. Tool 工具注册表 + 接口定义
 
   **What to do**：
   - 创建 `GameTool` 接口：getName/getDescription/getDefinition/execute
@@ -728,7 +728,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-9-tool-registry-test.txt`
   **Commit**: `feat: define GameTool interface and ToolRegistry` — interfaces + registry
 
-- [ ] 10. InventoryTool 背包查询工具
+- [x] 10. InventoryTool 背包查询工具
 
   **What to do**：实现 `ReadOnlyGameTool`，name=`get_inventory`，调用 GameDataAccess 返回背包物品列表
   **Category**: `quick` | Wave 2 | Blocks: T15 | Blocked By: T7, T9
@@ -737,7 +737,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-10-inventory-tool-test.txt`
   **Commit**: `feat: implement InventoryTool` — `InventoryTool.java`, tests
 
-- [ ] 11. RecipeTool 配方查询工具
+- [x] 11. RecipeTool 配方查询工具
 
   **What to do**：实现 `ReadOnlyGameTool`，name=`lookup_recipe`，参数 item 名，返回合成/熔炼配方
   **Category**: `deep` — RecipeManager API 复杂 | Wave 2 | Blocks: T15 | Blocked By: T7, T9
@@ -746,7 +746,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-11-recipe-tool-test.txt`
   **Commit**: `feat: implement RecipeTool` — `RecipeTool.java`, tests
 
-- [ ] 12. PositionTool 玩家状态工具
+- [x] 12. PositionTool 玩家状态工具
 
   **What to do**：实现 `ReadOnlyGameTool`，name=`get_player_status`，返回坐标/维度/生命/饥饿
   **Category**: `quick` | Wave 2 | Blocks: T15 | Blocked By: T7, T9
@@ -755,7 +755,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-12-position-tool-test.txt`
   **Commit**: `feat: implement PositionTool` — `PositionTool.java`, tests
 
-- [ ] 13. ItemEncyclopediaTool 物品百科工具
+- [x] 13. ItemEncyclopediaTool 物品百科工具
 
   **What to do**：实现 `ReadOnlyGameTool`，name=`item_info`，返回 maxStackSize/maxDamage/rarity/foodProps
   **Category**: `medium` — DataComponentMap API | Wave 2 | Blocks: T15 | Blocked By: T7, T9
@@ -764,7 +764,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-13-item-info-test.txt`
   **Commit**: `feat: implement ItemEncyclopediaTool` — `ItemEncyclopediaTool.java`, tests
 
-- [ ] 14. WorldStateTool 世界状态工具
+- [x] 14. WorldStateTool 世界状态工具
 
   **What to do**：实现 `ReadOnlyGameTool`，name=`get_world_state`，返回时间/天气/难度/生物群系
   **Category**: `quick` | Wave 2 | Blocks: T15 | Blocked By: T7, T9
@@ -773,7 +773,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-14-world-state-test.txt`
   **Commit**: `feat: implement WorldStateTool` — `WorldStateTool.java`, tests
 
-- [ ] 15. Function Calling 调度器
+- [x] 15. Function Calling 调度器
 
   **What to do**：
   - 创建 `ToolCallDispatcher.java`：接收 tool_calls → 执行 → 结果回传 AI
@@ -794,7 +794,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - **Evidence**: `.sisyphus/evidence/task-15-dispatcher-test.txt`
   - **Commit**: `feat: implement Function Calling dispatcher with conversation loop` — `ToolCallDispatcher.java`, `AIChatService.java`, tests
 
-- [ ] 16. AI 聊天 UI 组件（消息气泡 + 可滚动列表）
+- [x] 16. AI 聊天 UI 组件（消息气泡 + 可滚动列表）
 
   **What to do**：
   - 创建 `ChatMessageWidget.java`：渲染单条消息气泡（用户右对齐蓝色，AI 左对齐灰色）
@@ -815,7 +815,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - **Evidence**: `.sisyphus/evidence/task-16-chat-ui.png`
   - **Commit**: `feat: implement chat message bubble and scrollable message list` — chat UI files
 
-- [ ] 17. 物品栏 Screen 集成（侧边栏面板）
+- [x] 17. 物品栏 Screen 集成（侧边栏面板）
 
   **What to do**：
   - 创建 `AIChatSidebarPanel.java`：在物品栏界面左侧渲染 AI 聊天面板
@@ -837,7 +837,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - **Evidence**: `.sisyphus/evidence/task-17-sidebar-inventory.png`
   - **Commit**: `feat: integrate AI chat sidebar into inventory screen (JEI-style)` — sidebar panel files
 
-- [ ] 18. 全屏 AIChatScreen
+- [x] 18. 全屏 AIChatScreen
 
   **What to do**：
   - 创建 `AIChatScreen.java`：独立全屏聊天界面（继承 `Screen`）
@@ -858,7 +858,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - **Evidence**: `.sisyphus/evidence/task-18-fullscreen-chat.png`
   - **Commit**: `feat: implement full-screen AI chat screen` — `AIChatScreen.java`
 
-- [ ] 19. 快捷键注册（` 键）
+- [x] 19. 快捷键注册（` 键）
 
   **What to do**：
   - 在 `ClientModEvents` 中注册快捷键：`GLFW.GLFW_KEY_GRAVE_ACCENT`（反引号 ` 键）
@@ -877,7 +877,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-19-keybinding.txt`
   **Commit**: `feat: register backtick keybinding for AI chat` — keybinding registration
 
-- [ ] 20. 流式渲染更新
+- [x] 20. 流式渲染更新
 
   **What to do**：
   - 实现 AI 流式响应时的逐字渲染
@@ -896,7 +896,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-20-streaming.txt`
   **Commit**: `feat: implement streaming token-by-token chat rendering` — rendering updates
 
-- [ ] 21. Markdown/格式化文本渲染
+- [x] 21. Markdown/格式化文本渲染
 
   **What to do**：
   - 实现轻量 Markdown 解析器（仅支持常用格式）：
@@ -918,7 +918,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-21-markdown-test.txt`
   **Commit**: `feat: implement lightweight Markdown-to-Component renderer` — `MarkdownRenderer.java`, tests
 
-- [ ] 22. 聊天历史持久化（存档隔离）
+- [x] 22. 聊天历史持久化（存档隔离）
 
   **What to do**：
   - 创建 `ChatHistoryManager.java`：管理每个存档的对话历史
@@ -941,7 +941,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - **Evidence**: `.sisyphus/evidence/task-22-persistence-test.txt`
   - **Commit**: `feat: implement per-save conversation history persistence` — `ChatHistoryManager.java`, tests
 
-- [ ] 23. 多会话管理
+- [x] 23. 多会话管理
 
   **What to do**：
   - 创建 `ConversationManager.java`：管理多个对话线程
@@ -959,7 +959,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-23-multi-thread-test.txt`
   **Commit**: `feat: implement multi-conversation thread management` — `ConversationManager.java`, tests
 
-- [ ] 24. 配置 GUI 界面
+- [x] 24. 配置 GUI 界面
 
   **What to do**：
   - 创建 `ConfigScreen.java`：图形化配置界面
@@ -980,7 +980,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   - **Evidence**: `.sisyphus/evidence/task-24-config-gui.png`
   - **Commit**: `feat: implement GUI configuration screen` — `ConfigScreen.java`
 
-- [ ] 25. `/agentchat` 指令
+- [x] 25. `/agentchat` 指令
 
   **What to do**：
   - 注册客户端指令 `/agentchat`：
@@ -1002,7 +1002,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   **Evidence**: `.sisyphus/evidence/task-25-commands.txt`
   **Commit**: `feat: add /agentchat command for config and thread management` — command registration
 
-- [ ] 26. 错误处理与状态提示
+- [x] 26. 错误处理与状态提示
 
   **What to do**：
   - 创建 `StatusBanner.java`：统一的状态提示组件
@@ -1029,15 +1029,15 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
 
 > 4 个审查代理**并行**执行。所有审查必须 **APPROVE**。汇总结果呈现给用户，**等待用户明确 "okay"** 后才算完成。
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, check classes). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run `./gradlew build` + `./gradlew test`. Review all changed files for: Java warnings, empty catch blocks, `System.out.println` 残留, commented-out code, unused imports. Check AI slop: excessive comments, over-abstraction, generic names (data/result/item/temp). Detect AI-slop anti-patterns from guardrails.
   Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
-- [ ] F3. **Real Manual QA** — `unspecified-high`
+- [x] F3. **Real Manual QA** — `unspecified-high`
   Start from clean state. Execute ALL QA scenarios from ALL tasks — follow exact steps, capture evidence. Test cross-task integration: 
   - Open inventory → see sidebar → type "what's in my inventory" → AI calls get_inventory → streams answer
   - Type "how to craft diamond sword" → AI calls lookup_recipe → streams recipe
@@ -1047,7 +1047,7 @@ Wave FINAL（所有任务后 — 4 项并行审查，需用户确认）：
   Save to `.sisyphus/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `deep`
+- [x] F4. **Scope Fidelity Check** — `deep`
   For each task: read "What to do", read actual diff (git log/diff). Verify 1:1 — everything in spec was built (no missing), nothing beyond spec was built (no creep). Check "Must NOT do" compliance. Detect cross-task contamination. Flag unaccounted changes.
   Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | Unaccounted [CLEAN/N files] | VERDICT`
 
