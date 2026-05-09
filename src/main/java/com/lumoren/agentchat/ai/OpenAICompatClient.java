@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -118,6 +119,55 @@ public class OpenAICompatClient {
                 }
                 JsonElement content = message.get("content");
                 return content != null && !content.isJsonNull() ? content.getAsString() : "";
+            });
+    }
+
+    /**
+     * Sends a non-streaming chat completion request and returns the full assistant message,
+     * including any tool calls.
+     *
+     * @param messages message list
+     * @param tools    tool definition list (may be null)
+     * @return CompletableFuture containing the assistant ChatMessage
+     */
+    public CompletableFuture<ChatMessage> chatCompletionWithTools(List<ChatMessage> messages, List<ToolDefinition> tools) {
+        if (!config.hasApiKey()) {
+            return CompletableFuture.failedFuture(new ApiAuthException("API key not configured"));
+        }
+
+        JsonObject body = buildRequestBody(messages, tools, false);
+        HttpRequest request = buildRequest(body);
+
+        return sendWithRetry(request, HttpResponse.BodyHandlers.ofString(), 0)
+            .thenApply(response -> {
+                JsonObject json = gson.fromJson(response.body(), JsonObject.class);
+                JsonArray choices = json.getAsJsonArray("choices");
+                if (choices == null || choices.isEmpty()) {
+                    return ChatMessage.assistant("");
+                }
+                JsonObject message = choices.get(0).getAsJsonObject().getAsJsonObject("message");
+                if (message == null) {
+                    return ChatMessage.assistant("");
+                }
+
+                JsonElement content = message.get("content");
+                String contentStr = content != null && !content.isJsonNull() ? content.getAsString() : "";
+
+                JsonArray toolCallsArray = message.getAsJsonArray("tool_calls");
+                List<ChatMessage.ToolCall> toolCalls = null;
+                if (toolCallsArray != null && !toolCallsArray.isEmpty()) {
+                    toolCalls = new ArrayList<>();
+                    for (JsonElement tcElem : toolCallsArray) {
+                        JsonObject tcObj = tcElem.getAsJsonObject();
+                        String id = tcObj.has("id") ? tcObj.get("id").getAsString() : "";
+                        JsonObject funcObj = tcObj.getAsJsonObject("function");
+                        String name = funcObj.has("name") ? funcObj.get("name").getAsString() : "";
+                        String arguments = funcObj.has("arguments") ? funcObj.get("arguments").getAsString() : "";
+                        toolCalls.add(new ChatMessage.ToolCall(id, new ChatMessage.FunctionCall(name, arguments)));
+                    }
+                }
+
+                return new ChatMessage("assistant", contentStr, null, toolCalls, null);
             });
     }
 
