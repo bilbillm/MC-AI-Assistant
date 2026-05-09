@@ -33,6 +33,10 @@ public final class I18nKeys {
     public static final String EMPTY_CONVERSATION = "agentchat.empty_conversation";
     /** 新对话标题 */
     public static final String THREAD_NEW = "agentchat.thread.new";
+    /** 保存按钮 */
+    public static final String BUTTON_SAVE = "agentchat.button.save";
+    /** 取消按钮 */
+    public static final String BUTTON_CANCEL = "agentchat.button.cancel";
 
     // ==================== LOADING ====================
     /** AI 思考中 */
@@ -79,6 +83,24 @@ public final class I18nKeys {
     public static final String KEY_CATEGORY = "agentchat.key.category";
     /** 打开聊天 */
     public static final String KEY_OPEN_CHAT = "agentchat.key.open_chat";
+
+    // ==================== COMMAND ====================
+    /** 配置界面已打开 */
+    public static final String COMMAND_CONFIG_OPENED = "agentchat.command.config_opened";
+    /** API Key 已设置 */
+    public static final String COMMAND_KEY_SET = "agentchat.command.key_set";
+    /** 对话已清空 */
+    public static final String COMMAND_CLEAR_SUCCESS = "agentchat.command.clear_success";
+    /** 线程列表标题（含参数：数量） */
+    public static final String COMMAND_THREADS_HEADER = "agentchat.command.threads_header";
+    /** 线程列表条目（含参数：id前缀, 名称, 消息数） */
+    public static final String COMMAND_THREADS_ENTRY = "agentchat.command.threads_entry";
+    /** 线程已创建（含参数：名称, ID） */
+    public static final String COMMAND_THREAD_CREATED = "agentchat.command.thread_created";
+    /** 线程已切换（含参数：名称） */
+    public static final String COMMAND_THREAD_SWITCHED = "agentchat.command.thread_switched";
+    /** 线程未找到（含参数：ID） */
+    public static final String COMMAND_THREAD_NOT_FOUND = "agentchat.command.thread_not_found";
 
     // ==================== STATUS ====================
     /** 已连接 */
