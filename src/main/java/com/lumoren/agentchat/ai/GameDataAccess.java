@@ -158,7 +158,10 @@ public class GameDataAccess {
         List<RecipeResult> results = new ArrayList<>();
 
         try {
-            var craftingRecipes = manager.getAllRecipesFor(getCraftingRecipeType());
+            // Cast required because getCraftingRecipeType() returns RecipeType<?>
+            RecipeType<Recipe<CraftingInput>> craftingType =
+                    (RecipeType<Recipe<CraftingInput>>) (RecipeType<?>) getCraftingRecipeType();
+            var craftingRecipes = manager.getAllRecipesFor(craftingType);
             for (RecipeHolder<? extends Recipe<CraftingInput>> holder : craftingRecipes) {
                 Recipe<CraftingInput> recipe = holder.value();
                 CraftingInput dummy = CraftingInput.of(3, 3, NonNullList.withSize(9, ItemStack.EMPTY));

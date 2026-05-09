@@ -59,6 +59,14 @@ public class ConversationThread {
     }
 
     /**
+     * 清空所有消息并更新时间戳。
+     */
+    public void clearMessages() {
+        messages.clear();
+        updatedAt = Instant.now();
+    }
+
+    /**
      * 获取不可变的消息列表副本。
      *
      * @return 只读消息列表

@@ -20,12 +20,14 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Optional;
 
@@ -79,7 +81,13 @@ class GameDataAccessTest {
         when(torch.getDamageValue()).thenReturn(0);
         items.set(3, torch);
 
-        inventory.items = items;
+        try {
+            Field itemsField = Inventory.class.getField("items");
+            itemsField.setAccessible(true);
+            itemsField.set(inventory, items);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set inventory items", e);
+        }
 
         try (MockedStatic<GameDataAccess> mocked = mockStatic(GameDataAccess.class, Mockito.CALLS_REAL_METHODS)) {
             mocked.when(() -> GameDataAccess.getItemKey(any(Item.class)))
@@ -144,7 +152,7 @@ class GameDataAccessTest {
         when(mockItem.getDefaultInstance()).thenReturn(mockStack);
         when(mockStack.getMaxStackSize()).thenReturn(1);
         when(mockStack.getRarity()).thenReturn(Rarity.EPIC);
-        when(mockStack.get(any())).thenReturn(null);
+        when(mockStack.get(any(DataComponentType.class))).thenReturn(null);
 
         try (MockedStatic<GameDataAccess> mocked = mockStatic(GameDataAccess.class, Mockito.CALLS_REAL_METHODS)) {
             mocked.when(() -> GameDataAccess.lookupItem(ResourceLocation.parse("minecraft:diamond_sword")))

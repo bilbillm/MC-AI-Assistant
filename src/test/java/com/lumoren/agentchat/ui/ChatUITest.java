@@ -32,7 +32,7 @@ class ChatUITest {
     @BeforeEach
     void setUp() {
         lenient().when(font.lineHeight).thenReturn(9);
-        lenient().when(font.wordWrapHeight(any(), anyInt())).thenReturn(18);
+        lenient().when(font.wordWrapHeight(anyString(), anyInt())).thenReturn(18);
     }
 
     // ==================== ChatMessageWidget Tests ====================

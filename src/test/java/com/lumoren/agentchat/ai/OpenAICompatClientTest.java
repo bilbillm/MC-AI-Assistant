@@ -110,7 +110,7 @@ class OpenAICompatClientTest {
         HttpResponse<String> mockResponse = mock(HttpResponse.class);
         when(mockResponse.statusCode()).thenReturn(200);
         when(mockResponse.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"\"}}]}");
-        when(mockSender.sendAsync(any(), any())).thenReturn(CompletableFuture.completedFuture(mockResponse));
+        when(mockSender.sendAsync(any(), any())).thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
 
         client.chatCompletion(List.of(ChatMessage.user("Hello")), null).get();
 
@@ -132,7 +132,7 @@ class OpenAICompatClientTest {
         HttpResponse<String> mockResponse = mock(HttpResponse.class);
         when(mockResponse.statusCode()).thenReturn(200);
         when(mockResponse.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"Hello world\"}}]}");
-        when(mockSender.sendAsync(any(), any())).thenReturn(CompletableFuture.completedFuture(mockResponse));
+        when(mockSender.sendAsync(any(), any())).thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
 
         String result = client.chatCompletion(List.of(ChatMessage.user("Hello")), null).get();
 
@@ -144,7 +144,7 @@ class OpenAICompatClientTest {
         HttpResponse<String> mockResponse = mock(HttpResponse.class);
         when(mockResponse.statusCode()).thenReturn(200);
         when(mockResponse.body()).thenReturn("{\"choices\":[]}");
-        when(mockSender.sendAsync(any(), any())).thenReturn(CompletableFuture.completedFuture(mockResponse));
+        when(mockSender.sendAsync(any(), any())).thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
 
         String result = client.chatCompletion(List.of(ChatMessage.user("Hello")), null).get();
 
@@ -163,7 +163,7 @@ class OpenAICompatClientTest {
             "data: {\"choices\":[{\"delta\":{\"content\":\"world\"}}]}",
             "data: [DONE]"
         ));
-        when(mockSender.sendAsync(any(), any())).thenReturn(CompletableFuture.completedFuture(mockResponse));
+        when(mockSender.sendAsync(any(), any())).thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
 
         List<String> tokens = new ArrayList<>();
         CompletableFuture<Void> completed = new CompletableFuture<>();
@@ -196,7 +196,7 @@ class OpenAICompatClientTest {
     void chatCompletion_401throwsApiAuthException() {
         HttpResponse<String> mockResponse = mock(HttpResponse.class);
         when(mockResponse.statusCode()).thenReturn(401);
-        when(mockSender.sendAsync(any(), any())).thenReturn(CompletableFuture.completedFuture(mockResponse));
+        when(mockSender.sendAsync(any(), any())).thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
 
         ExecutionException ex = assertThrows(ExecutionException.class, () -> {
             client.chatCompletion(List.of(ChatMessage.user("Hello")), null).get();
@@ -209,7 +209,7 @@ class OpenAICompatClientTest {
     void chatCompletion_429retriesThenThrowsApiRateLimitException() {
         HttpResponse<String> mockResponse = mock(HttpResponse.class);
         when(mockResponse.statusCode()).thenReturn(429);
-        when(mockSender.sendAsync(any(), any())).thenReturn(CompletableFuture.completedFuture(mockResponse));
+        when(mockSender.sendAsync(any(), any())).thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
 
         ExecutionException ex = assertThrows(ExecutionException.class, () -> {
             client.chatCompletion(List.of(ChatMessage.user("Hello")), null).get();
@@ -229,8 +229,8 @@ class OpenAICompatClientTest {
         when(successResponse.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"OK\"}}]}");
 
         when(mockSender.sendAsync(any(), any()))
-            .thenReturn(CompletableFuture.completedFuture(errorResponse))
-            .thenReturn(CompletableFuture.completedFuture(successResponse));
+            .thenReturn((CompletableFuture) CompletableFuture.completedFuture(errorResponse))
+            .thenReturn((CompletableFuture) CompletableFuture.completedFuture(successResponse));
 
         String result = client.chatCompletion(List.of(ChatMessage.user("Hello")), null).get();
 

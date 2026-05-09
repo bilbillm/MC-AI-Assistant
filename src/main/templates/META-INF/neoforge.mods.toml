@@ -5,6 +5,7 @@ displayName="${mod_name}"
 logoFile="agentchat.png"
 credits="lumoren"
 authors="lumoren"
+configScreen="com.lumoren.agentchat.ui.ConfigScreen"
 description='''
 An AI chat assistant mod for Minecraft (NeoForge 1.21.1)
 '''
