@@ -1,5 +1,6 @@
 modLoader="javafml"
 loaderVersion="[4,)"
+license="LGPL-3.0"
 
 [[mods]]
 modId="${mod_id}"
@@ -15,7 +16,7 @@ An AI chat assistant mod for Minecraft (NeoForge ${minecraft_version})
 
 [[dependencies.agentchat]]
 modId="minecraft"
-type="required"
-versionRange="[${minecraft_version}]"
+mandatory=true
+versionRange="[${minecraft_version},1.22)"
 ordering="NONE"
 side="CLIENT"
