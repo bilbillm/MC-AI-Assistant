@@ -1,0 +1,17 @@
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+logoFile="agentchat.png"
+credits="lumoren"
+authors="lumoren"
+description='''
+An AI chat assistant mod for Minecraft (NeoForge 1.21.1)
+'''
+
+[[dependencies.agentchat]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+ordering="NONE"
+side="CLIENT"

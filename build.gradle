@@ -1,0 +1,81 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+group = mod_group
+version = mod_version
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+neoForge {
+    version = neo_version
+
+    parchment {
+        minecraftVersion = "1.21"
+        mappingsVersion = "2024.11.17"
+    }
+
+    mods {
+        "$mod_id" {
+            sourceSet sourceSets.main
+        }
+    }
+
+    runs {
+        client {
+            client()
+        }
+        data {
+            data()
+        }
+        server {
+            server()
+        }
+        gameTestServer {
+            type = "gameTestServer"
+        }
+    }
+
+}
+
+dependencies {
+    // Test dependencies
+    testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
+    testImplementation "org.mockito:mockito-core:5.14.2"
+    testImplementation "org.mockito:mockito-junit-jupiter:5.14.2"
+    testImplementation "com.google.code.gson:gson:2.11.0"
+
+    // Ensure NeoForge dependency is available for tests
+    testImplementation "net.neoforged:neoforge:$neo_version"
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    maxParallelForks = 1
+}
+
+tasks.named('compileJava', JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+// Generate mod metadata from templates
+tasks.named('processResources', ProcessResources) {
+    var expandProperties = [
+            'mod_id'          : mod_id,
+            'mod_name'        : mod_name,
+            'mod_version'     : mod_version,
+            'mod_group'       : mod_group,
+            'minecraft_version': minecraft_version,
+            'neo_version'     : neo_version,
+    ]
+    inputs.properties(expandProperties)
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand(expandProperties)
+    }
+}
