@@ -1,6 +1,7 @@
 package com.lumoren.agentchat.ui;
 
 import com.lumoren.agentchat.model.ChatMessage;
+import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -23,18 +24,6 @@ public class ChatMessageWidget {
     private static final int BUBBLE_RADIUS = 6;
     private static final int GAP = 6;
     private static final int REASONING_HEADER_HEIGHT = 14;
-
-    private static final int COLOR_USER_BG = 0xFF3B82F6;
-    private static final int COLOR_AI_BG = 0xFF374151;
-    private static final int COLOR_USER_AVATAR = 0xFF2563EB;
-    private static final int COLOR_AI_AVATAR = 0xFF4B5563;
-    private static final int COLOR_ERROR_TEXT = 0xFFFF4444;
-    private static final int COLOR_USER_TEXT = 0xFFFFFFFF;
-    private static final int COLOR_AI_TEXT = 0xFFE5E7EB;
-    private static final int COLOR_AVATAR_TEXT = 0xFFFFFFFF;
-    private static final int COLOR_REASONING_HEADER = 0xFF9CA3AF;
-    private static final int COLOR_REASONING_TEXT = 0xFF9CA3AF;
-    private static final int COLOR_REASONING_SEP = 0x664B5563;
 
     private final ChatMessage message;
     private final Component renderedContent;
@@ -93,6 +82,10 @@ public class ChatMessageWidget {
                 && !message.reasoningContent().isBlank();
     }
     public boolean isReasoningExpanded() {
+        // Auto-expand during streaming when content is still empty (thinking phase)
+        if (hasReasoning() && (message.content() == null || message.content().isBlank())) {
+            return true;
+        }
         return expandedReasonings.contains(message.id());
     }
     public void toggleReasoning() {
@@ -121,7 +114,7 @@ public class ChatMessageWidget {
     private void renderError(GuiGraphics graphics, int x, int y, int width, Font font) {
         int innerWidth = width - PADDING * 2;
         if (innerWidth <= 10) innerWidth = 10;
-        graphics.drawWordWrap(font, renderedContent, x + PADDING, y + PADDING, innerWidth, COLOR_ERROR_TEXT);
+        graphics.drawWordWrap(font, renderedContent, x + PADDING, y + PADDING, innerWidth, ChatColors.TEXT_ERROR);
     }
 
     private void renderUserBubble(GuiGraphics graphics, int x, int y, int width, Font font) {
@@ -135,9 +128,9 @@ public class ChatMessageWidget {
         int bubbleHeight = PADDING + textHeight + PADDING;
 
         int bubbleX = x + width - AVATAR_SIZE - AVATAR_GAP - bubbleWidth;
-        drawAvatar(graphics, x + width - AVATAR_SIZE, y, "U", COLOR_USER_AVATAR, font);
-        drawBubble(graphics, bubbleX, y, bubbleWidth, bubbleHeight, COLOR_USER_BG);
-        graphics.drawWordWrap(font, renderedContent, bubbleX + PADDING, y + PADDING, innerWidth, COLOR_USER_TEXT);
+        drawAvatar(graphics, x + width - AVATAR_SIZE, y, "U", ChatColors.AVATAR_USER_BG, font);
+        drawBubble(graphics, bubbleX, y, bubbleWidth, bubbleHeight, ChatColors.BUBBLE_USER_BG);
+        graphics.drawWordWrap(font, renderedContent, bubbleX + PADDING, y + PADDING, innerWidth, ChatColors.TEXT_PRIMARY);
     }
 
     private void renderAIBubble(GuiGraphics graphics, int x, int y, int width, Font font) {
@@ -159,6 +152,10 @@ public class ChatMessageWidget {
         }
 
         int bubbleWidth = Math.min(bubbleMaxWidth, maxContentWidth(font, renderedContent, bubbleMaxWidth));
+        // Ensure bubble is wide enough for reasoning text when content is empty
+        if (hasReasoning() && isReasoningExpanded()) {
+            bubbleWidth = Math.max(bubbleWidth, maxContentWidth(font, renderedReasoning, bubbleMaxWidth));
+        }
         // Ensure bubble is wide enough for reasoning header text
         if (hasReasoning()) {
             String toggleLabel = (isReasoningExpanded() ? "▼ " : "▶ ") + "思考过程";
@@ -169,8 +166,8 @@ public class ChatMessageWidget {
         int avatarX = x;
         int bubbleX = x + AVATAR_SIZE + AVATAR_GAP;
 
-        drawAvatar(graphics, avatarX, y, "AI", COLOR_AI_AVATAR, font);
-        drawBubble(graphics, bubbleX, y, bubbleWidth, bubbleHeight, COLOR_AI_BG);
+        drawAvatar(graphics, avatarX, y, "AI", ChatColors.AVATAR_AI_BG, font);
+        drawBubble(graphics, bubbleX, y, bubbleWidth, bubbleHeight, ChatColors.BUBBLE_AI_BG);
 
         int contentY = y + PADDING;
         if (hasReasoning()) {
@@ -180,20 +177,20 @@ public class ChatMessageWidget {
             toggleY = contentY;
             toggleWidth = font.width(toggleLabel) + 8;
             toggleHeight = REASONING_HEADER_HEIGHT;
-            graphics.drawString(font, toggleLabel, toggleX, toggleY, COLOR_REASONING_HEADER);
+            graphics.drawString(font, toggleLabel, toggleX, toggleY, ChatColors.TEXT_REASONING);
             contentY += REASONING_HEADER_HEIGHT + 2;
 
             if (isReasoningExpanded()) {
                 // Separator
-                graphics.fill(bubbleX + PADDING, contentY, bubbleX + bubbleWidth - PADDING, contentY + 1, COLOR_REASONING_SEP);
+                graphics.fill(bubbleX + PADDING, contentY, bubbleX + bubbleWidth - PADDING, contentY + 1, ChatColors.SEPARATOR);
                 contentY += 4;
                 // Reasoning text
-                graphics.drawWordWrap(font, renderedReasoning, bubbleX + PADDING, contentY, innerWidth, COLOR_REASONING_TEXT);
+                graphics.drawWordWrap(font, renderedReasoning, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_REASONING);
                 contentY += reasoningHeight + 4;
             }
         }
         // Main response text
-        graphics.drawWordWrap(font, renderedContent, bubbleX + PADDING, contentY, innerWidth, COLOR_AI_TEXT);
+        graphics.drawWordWrap(font, renderedContent, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_SECONDARY);
     }
 
     // ==================== Helpers ====================
@@ -209,7 +206,7 @@ public class ChatMessageWidget {
         int textWidth = font.width(label);
         int textX = x + (AVATAR_SIZE - textWidth) / 2;
         int textY = y + (AVATAR_SIZE - font.lineHeight) / 2;
-        graphics.drawString(font, label, textX, textY, COLOR_AVATAR_TEXT);
+        graphics.drawString(font, label, textX, textY, ChatColors.AVATAR_TEXT);
     }
 
     private static void drawBubble(GuiGraphics graphics, int x, int y, int width, int height, int color) {

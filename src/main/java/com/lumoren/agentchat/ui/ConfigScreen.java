@@ -5,6 +5,7 @@ import com.lumoren.agentchat.config.Config;
 import com.lumoren.agentchat.config.ConfigManager;
 import com.lumoren.agentchat.i18n.I18nHelper;
 import com.lumoren.agentchat.i18n.I18nKeys;
+import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
@@ -23,11 +24,11 @@ import java.util.function.Consumer;
 public class ConfigScreen extends Screen {
 
     private static final int PADDING = 20;
-    private static final int LINE_HEIGHT = 24;
     private static final int BUTTON_WIDTH = 80;
     private static final int BUTTON_HEIGHT = 20;
     private static final int FIELD_WIDTH = 200;
-    private static final int LABEL_WIDTH = 120;
+    private static final int LABEL_GAP = 8;
+    private static final int ROW_HEIGHT = 24;
     private static final char MASK_CHAR = '*';
 
     private final Screen parent;
@@ -54,86 +55,80 @@ public class ConfigScreen extends Screen {
         ConfigManager cfg = ConfigManager.getInstance();
         this.tempValue = cfg.getTemperature();
 
-        int centerX = this.width / 2;
-        int startY = PADDING + 20;
-        int fieldX = centerX - FIELD_WIDTH / 2;
-        int labelX = centerX - FIELD_WIDTH / 2 - LABEL_WIDTH - 10;
+        // Center the form horizontally. label+gap+field must fit screen.
+        // Find widest label to compute total width.
+        int maxLabelW = Math.max(font.width(I18nHelper.translateToString(I18nKeys.CONFIG_BASE_URL)),
+                font.width(I18nHelper.translateToString(I18nKeys.CONFIG_MAX_TOKENS)));
+        int formWidth = maxLabelW + LABEL_GAP + FIELD_WIDTH;
+        int formX = Math.max(PADDING, (this.width - formWidth) / 2);
+        int fieldX = formX + maxLabelW + LABEL_GAP;
 
-        // Title label (centered)
+        // Title (centered)
         String titleStr = I18nHelper.translateToString(I18nKeys.CONFIG_TITLE);
         this.addRenderableWidget(new LabelWidget(
-                centerX - font.width(titleStr) / 2, PADDING,
-                titleStr, 0xFFFFFFFF, font
-        ));
+                this.width / 2 - font.width(titleStr) / 2, PADDING,
+                titleStr, ChatColors.TEXT_PRIMARY, font));
 
-        int y = startY;
+        int y = PADDING + 24;
 
-        // Labels + fields (label widgets drawn before fields for proper hit-testing)
-        addLabel(I18nKeys.CONFIG_API_KEY, labelX, y + 4);
+        // API Key
+        addLabel(I18nKeys.CONFIG_API_KEY, formX, y);
         this.savedApiKey = cfg.getApiKey();
         apiKeyField = new EditBox(font, fieldX, y, FIELD_WIDTH, BUTTON_HEIGHT, Component.empty());
         apiKeyField.setMaxLength(256);
-        if (savedApiKey != null && !savedApiKey.isBlank()) {
-            apiKeyField.setValue(maskApiKey(savedApiKey));
-        }
+        if (savedApiKey != null && !savedApiKey.isBlank()) apiKeyField.setValue(maskApiKey(savedApiKey));
         apiKeyField.setHint(I18nHelper.translate(I18nKeys.CONFIG_HINT_API_KEY));
-        apiKeyField.setResponder(this::onApiKeyChanged);
         addRenderableWidget(apiKeyField);
-        y += LINE_HEIGHT;
+        y += ROW_HEIGHT;
 
-        addLabel(I18nKeys.CONFIG_BASE_URL, labelX, y + 4);
+        // Base URL
+        addLabel(I18nKeys.CONFIG_BASE_URL, formX, y);
         baseUrlField = new EditBox(font, fieldX, y, FIELD_WIDTH, BUTTON_HEIGHT, Component.empty());
         baseUrlField.setMaxLength(256);
         baseUrlField.setValue(cfg.getBaseUrl());
         baseUrlField.setHint(I18nHelper.translate(I18nKeys.CONFIG_HINT_BASE_URL));
         addRenderableWidget(baseUrlField);
-        y += LINE_HEIGHT;
+        y += ROW_HEIGHT;
 
-        addLabel(I18nKeys.CONFIG_MODEL, labelX, y + 4);
+        // Model
+        addLabel(I18nKeys.CONFIG_MODEL, formX, y);
         modelField = new EditBox(font, fieldX, y, FIELD_WIDTH, BUTTON_HEIGHT, Component.empty());
         modelField.setMaxLength(128);
         modelField.setValue(cfg.getModel());
         modelField.setHint(I18nHelper.translate(I18nKeys.CONFIG_HINT_MODEL));
         addRenderableWidget(modelField);
-        y += LINE_HEIGHT;
+        y += ROW_HEIGHT;
 
-        addLabel(I18nKeys.CONFIG_TEMPERATURE, labelX, y + 4);
-        temperatureSlider = new ConfigSlider(
-                fieldX, y, FIELD_WIDTH, BUTTON_HEIGHT,
-                I18nHelper.translateToString(I18nKeys.CONFIG_TEMPERATURE),
-                "", 0.0, 2.0, tempValue, 1,
-                v -> tempValue = v
-        );
+        // Temperature
+        addLabel(I18nKeys.CONFIG_TEMPERATURE, formX, y);
+        temperatureSlider = new ConfigSlider(fieldX, y, FIELD_WIDTH, BUTTON_HEIGHT,
+                I18nHelper.translateToString(I18nKeys.CONFIG_TEMPERATURE), "",
+                0.0, 2.0, tempValue, 1, v -> tempValue = v);
         addRenderableWidget(temperatureSlider);
-        y += LINE_HEIGHT;
+        y += ROW_HEIGHT;
 
-        addLabel(I18nKeys.CONFIG_MAX_TOKENS, labelX, y + 4);
+        // Max Tokens
+        addLabel(I18nKeys.CONFIG_MAX_TOKENS, formX, y);
         maxTokensField = new EditBox(font, fieldX, y, FIELD_WIDTH, BUTTON_HEIGHT, Component.empty());
         maxTokensField.setMaxLength(6);
         maxTokensField.setFilter(s -> s.matches("\\d*"));
         maxTokensField.setValue(String.valueOf(cfg.getMaxTokens()));
         maxTokensField.setHint(I18nHelper.translate(I18nKeys.CONFIG_HINT_MAX_TOKENS));
         addRenderableWidget(maxTokensField);
-        y += LINE_HEIGHT + 10;
+        y += ROW_HEIGHT + 10;
 
-        // Save + Cancel buttons
+        // Buttons
         int buttonY = Math.min(y, this.height - PADDING - BUTTON_HEIGHT);
-        addRenderableWidget(
-                Button.builder(I18nHelper.translate(I18nKeys.BUTTON_SAVE), this::onSave)
-                        .bounds(centerX - BUTTON_WIDTH - 5, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT)
-                        .build()
-        );
-        addRenderableWidget(
-                Button.builder(I18nHelper.translate(I18nKeys.BUTTON_CANCEL), this::onCancel)
-                        .bounds(centerX + 5, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT)
-                        .build()
-        );
+        int btnCenterX = formX + formWidth / 2;
+        addRenderableWidget(Button.builder(I18nHelper.translate(I18nKeys.BUTTON_SAVE), this::onSave)
+                .bounds(btnCenterX - BUTTON_WIDTH - 5, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT).build());
+        addRenderableWidget(Button.builder(I18nHelper.translate(I18nKeys.BUTTON_CANCEL), this::onCancel)
+                .bounds(btnCenterX + 5, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT).build());
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
-        // All labels, fields, sliders, buttons rendered via super.render()
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -146,7 +141,7 @@ public class ConfigScreen extends Screen {
         this.addRenderableWidget(new LabelWidget(
                 x, y,
                 I18nHelper.translateToString(key),
-                0xFFCCCCCC, font
+                ChatColors.TEXT_SECONDARY, font
         ));
     }
 

@@ -7,6 +7,7 @@ import com.lumoren.agentchat.i18n.I18nKeys;
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ConversationThread;
 import com.lumoren.agentchat.persistence.ConversationManager;
+import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -18,8 +19,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * AI chat screen with persistent conversation history.
- * Left sidebar: ThreadListWidget (collapsible). Right: chat + input.
+ * AI chat screen — Create-inspired layout.
+ * Left: collapsible thread list. Right: chat messages + input.
+ * Layout recalculated via init() when sidebar toggles.
  */
 public class AIChatScreen extends Screen {
 
@@ -38,9 +40,12 @@ public class AIChatScreen extends Screen {
     private Button sendButton;
     private Button newChatButton;
     private Button configButton;
-    private LabelWidget titleLabel;
-
-    private int lastSidebarWidth = -1; // track for dynamic layout
+    private Button deleteButton;
+    private boolean rebuilding;
+    private boolean pendingCollapsed;
+    private int savedScroll = -1; // preserve scroll across rebuild
+    private String firstUserMessage; // for auto-rename after first AI response
+    private static boolean globalSidebarCollapsed = false; // persist across screen opens
 
     public AIChatScreen() {
         super(I18nHelper.translate(I18nKeys.TITLE));
@@ -50,6 +55,8 @@ public class AIChatScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+
+        firstUserMessage = null; // reset for new conversation
 
         var mgr = ConversationManager.getInstance();
         this.thread = mgr != null ? mgr.getCurrentThread() : null;
@@ -62,30 +69,37 @@ public class AIChatScreen extends Screen {
                 .sorted(Comparator.comparing(ConversationThread::getUpdatedAt).reversed()).toList()
                 : List.<ConversationThread>of();
 
-        // Thread list sidebar (widget pipeline — crisp text)
-        this.threadList = new ThreadListWidget(this::switchToThread);
+        // Sidebar — collapse triggers rebuildLayout()
+        this.threadList = new ThreadListWidget(this::switchToThread, this::rebuildLayout);
         this.threadList.refresh(threads, thread.getId(), height, font);
+        if (globalSidebarCollapsed || pendingCollapsed) {
+            threadList.setCollapsed(true);
+            pendingCollapsed = false;
+        }
         this.addRenderableWidget(threadList);
 
-        int chatLeft = PADDING + threadList.getEffectiveWidth() + PADDING;
+        int sidebarW = threadList.getEffectiveWidth();
+        int chatLeft = PADDING + sidebarW + PADDING;
         int chatRight = width - PADDING;
-
-        // Title
-        this.titleLabel = new LabelWidget(chatLeft, PADDING + 2,
-                I18nHelper.translateToString(I18nKeys.TITLE), 0xFFFFFFFF, font);
-        this.addRenderableWidget(this.titleLabel);
-
-        // New Chat & Config buttons
-        this.newChatButton = this.addRenderableWidget(Button.builder(
-                        I18nHelper.translate(I18nKeys.BUTTON_NEW_THREAD), this::onNewChat)
-                .bounds(chatRight - 140, PADDING, 70, 18).build());
-        this.configButton = this.addRenderableWidget(Button.builder(
-                        I18nHelper.translate(I18nKeys.BUTTON_CONFIG), this::onOpenConfig)
-                .bounds(chatRight - 65, PADDING, 55, 18).build());
-
-        // Message list
         int listTop = PADDING + TITLE_HEIGHT + PADDING;
         int listBottom = height - PADDING - INPUT_HEIGHT - PADDING - 20;
+
+        // Title
+        this.addRenderableWidget(new LabelWidget(chatLeft, PADDING + 2,
+                I18nHelper.translateToString(I18nKeys.TITLE), ChatColors.TEXT_PRIMARY, font));
+
+        // New Chat, Config & Delete buttons (right side of title bar)
+        this.newChatButton = this.addRenderableWidget(Button.builder(
+                        I18nHelper.translate(I18nKeys.BUTTON_NEW_THREAD), this::onNewChat)
+                .bounds(chatRight - 185, PADDING, 55, 18).build());
+        this.configButton = this.addRenderableWidget(Button.builder(
+                        I18nHelper.translate(I18nKeys.BUTTON_CONFIG), this::onOpenConfig)
+                .bounds(chatRight - 125, PADDING, 40, 18).build());
+        this.deleteButton = this.addRenderableWidget(Button.builder(
+                        I18nHelper.translate(I18nKeys.BUTTON_DELETE), this::onDeleteThread)
+                .bounds(chatRight - 80, PADDING, 40, 18).build());
+
+        // Message list
         this.messageList = new MessageListWidget(thread, streamer);
         this.messageList.setBounds(chatLeft, listTop, chatRight - chatLeft, listBottom - listTop, font);
         this.addRenderableWidget(messageList);
@@ -109,15 +123,8 @@ public class AIChatScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // Dynamic layout: reposition chat widgets when sidebar collapses/expands
-        int currentSidebarW = threadList.getEffectiveWidth();
-        if (currentSidebarW != lastSidebarWidth) {
-            repositionForSidebar(currentSidebarW);
-            lastSidebarWidth = currentSidebarW;
-        }
-
         renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(0, 0, width, height, 0xCC111111);
+        graphics.fill(0, 0, width, height, ChatColors.BG_OVERLAY);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -126,46 +133,32 @@ public class AIChatScreen extends Screen {
     private void switchToThread(ConversationThread t) {
         if (t.getId().equals(thread.getId())) return;
         var mgr = ConversationManager.getInstance();
-        if (mgr != null) mgr.save();
+        if (mgr != null) {
+            mgr.save();
+            mgr.switchThread(t.getId()); // persist the switch
+        }
         thread = t;
         streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
         rebuildLayout();
     }
 
     private void rebuildLayout() {
-        lastSidebarWidth = -1; // force reposition on next render
-        this.clearWidgets();
-        this.children().clear();
-        this.renderables.clear();
-        init();
-    }
-
-    /** Reposition chat-area widgets when sidebar width changes. */
-    private void repositionForSidebar(int sidebarW) {
-        int chatLeft = PADDING + sidebarW + PADDING;
-        int chatRight = width - PADDING;
-        int listTop = PADDING + TITLE_HEIGHT + PADDING;
-        int listBottom = height - PADDING - INPUT_HEIGHT - PADDING - 20;
-        int sendX = chatRight - BUTTON_WIDTH;
-        int inputY = height - PADDING - 20;
-
-        // Title
-        if (titleLabel != null) titleLabel.setX(chatLeft);
-        // New Chat & Config buttons
-        if (newChatButton != null) newChatButton.setX(chatRight - 140);
-        if (configButton != null) configButton.setX(chatRight - 65);
-        // Message list
-        if (messageList != null) {
-            messageList.setX(chatLeft);
-            messageList.setWidth(chatRight - chatLeft);
+        if (rebuilding) return;
+        rebuilding = true;
+        try {
+            pendingCollapsed = threadList != null && threadList.isCollapsed();
+            globalSidebarCollapsed = pendingCollapsed; // sync persistent state
+            savedScroll = threadList != null ? threadList.getScroll() : 0;
+            this.clearWidgets();
+            this.children().clear();
+            this.renderables.clear();
+            init();
+            if (savedScroll >= 0 && threadList != null) {
+                threadList.setScroll(savedScroll);
+            }
+        } finally {
+            rebuilding = false;
         }
-        // Input
-        if (inputField != null) {
-            inputField.setX(chatLeft);
-            inputField.setWidth(sendX - chatLeft - PADDING);
-        }
-        // Send button
-        if (sendButton != null) sendButton.setX(sendX);
     }
 
     private void refreshThreadList() {
@@ -177,7 +170,17 @@ public class AIChatScreen extends Screen {
         }
     }
 
-    // ==================== Event handlers ====================
+    @Override
+    public boolean mouseClicked(double mx, double my, int button) {
+        return super.mouseClicked(mx, my, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mx, double my, double sx, double sy) {
+        if (threadList != null && threadList.mouseScrolled(mx, my, sx, sy)) return true;
+        if (messageList != null && messageList.mouseScrolled(mx, my, sx, sy)) return true;
+        return super.mouseScrolled(mx, my, sx, sy);
+    }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
@@ -191,8 +194,7 @@ public class AIChatScreen extends Screen {
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    @Override
-    public boolean isPauseScreen() { return false; }
+    @Override public boolean isPauseScreen() { return false; }
 
     @Override
     public void onClose() {
@@ -216,6 +218,7 @@ public class AIChatScreen extends Screen {
             streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
             rebuildLayout();
         }
+        firstUserMessage = null;
         refreshThreadList();
     }
 
@@ -225,10 +228,52 @@ public class AIChatScreen extends Screen {
         Minecraft.getInstance().setScreen(new ConfigScreen(this));
     }
 
+    private void onDeleteThread(Button b) {
+        var mgr = ConversationManager.getInstance();
+        if (mgr == null) return;
+        if (thread != null) {
+            mgr.deleteThread(thread.getId());
+            thread = mgr.getCurrentThread();
+            if (thread == null) thread = mgr.createThread();
+            streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
+            firstUserMessage = null;
+            rebuildLayout();
+            refreshThreadList();
+        }
+    }
+
     private void onInputChanged(String text) { sendButton.active = !text.isBlank(); }
-    private void onStreamUpdate() { if (messageList != null) messageList.onMessageAdded(); }
+    private void onStreamUpdate() {
+        if (messageList != null) messageList.onMessageAdded();
+        // Auto-rename after first AI response: ask AI for a concise title
+        if (firstUserMessage != null && streamer.isCompleted() && !streamer.hasError()) {
+            String msg = firstUserMessage;
+            firstUserMessage = null;
+            // Generate title via AI in background
+            chatService.sendMessage(
+                "Generate a concise title (max 15 chars) for a conversation that starts with: \"" + msg + "\". Reply with ONLY the title, no quotes or extra text.",
+                List.of(),
+                new com.lumoren.agentchat.ai.AIChatService.ChatCallback() {
+                    @Override public void onToken(String token) {}
+                    @Override public void onThinking(String s) {}
+                    @Override public void onError(String e) {}
+                    @Override public void onComplete(String title) {
+                        if (title != null && !title.isBlank()) {
+                            thread.setName(title.strip().replace("\"", ""));
+                            refreshThreadList();
+                            autoSave();
+                        }
+                    }
+                }
+            );
+        }
+    }
 
     private void sendMessage(String text) {
+        // Track first message for auto-rename
+        if (thread.messageCount() == 0) {
+            firstUserMessage = text;
+        }
         thread.addMessage(ChatMessage.user(text));
         inputField.setValue("");
         sendButton.active = false;

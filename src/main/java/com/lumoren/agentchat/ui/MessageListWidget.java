@@ -2,6 +2,7 @@ package com.lumoren.agentchat.ui;
 
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ConversationThread;
+import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -18,8 +19,8 @@ public class MessageListWidget extends AbstractWidget {
 
     private static final int SCROLLBAR_WIDTH = 4;
     private static final int SCROLLBAR_MARGIN = 2;
-    private static final int SCROLLBAR_COLOR = 0x88AAAAAA;
-    private static final int SCROLLBAR_BG_COLOR = 0x33333333;
+    private static final int SCROLLBAR_COLOR = ChatColors.SCROLLBAR_THUMB;
+    private static final int SCROLLBAR_BG_COLOR = ChatColors.SCROLLBAR_BG;
 
     private final ConversationThread thread;
     private final StreamingChatRenderer streamer;
@@ -77,22 +78,25 @@ public class MessageListWidget extends AbstractWidget {
             currentY += h;
         }
 
-        if (streamer.hasStreamingContent()) {
+        // Streaming placeholder: show if streaming content OR reasoning exists
+        if (streamer.isStreaming() && (streamer.hasStreamingContent() || streamer.hasReasoningContent())) {
             ChatMessage placeholder = new ChatMessage("assistant",
                     streamer.getCurrentContent(), null, null, null,
                     streamer.hasReasoningContent() ? streamer.getReasoningContent() : null);
-            ChatMessageWidget sw = new ChatMessageWidget(placeholder, contentWidth, expandedReasonings);
-            int h = sw.getHeight(font, listWidth);
-            if (currentY + h > listY && currentY < listY + listHeight) {
-                sw.render(graphics, listX, currentY, listWidth, font);
+            ChatMessageWidget streamingWidget = new ChatMessageWidget(placeholder, contentWidth, expandedReasonings);
+            int widgetHeight = streamingWidget.getHeight(font, listWidth);
+            if (currentY + widgetHeight > listY && currentY < listY + listHeight) {
+                streamingWidget.render(graphics, listX, currentY, listWidth, font);
             }
-            currentY += h;
+            currentY += widgetHeight;
         }
 
-        if (streamer.hasStatus() && !streamer.hasStreamingContent()) {
-            // Always show status at the bottom of visible content
+        if (streamer.isStreaming() && !streamer.hasStreamingContent() && !streamer.hasReasoningContent()) {
             int statusY = Math.max(listY, Math.min(currentY, listY + listHeight - font.lineHeight - 8));
-            graphics.drawString(font, streamer.getStatusText(), listX + 4, statusY + 4, 0xFFAAAAAA);
+            graphics.drawString(font, "...", listX + 4, statusY + 4, ChatColors.STATUS_TEXT);
+        } else if (streamer.hasStatus() && !streamer.hasStreamingContent() && !streamer.hasReasoningContent()) {
+            int statusY = Math.max(listY, Math.min(currentY, listY + listHeight - font.lineHeight - 8));
+            graphics.drawString(font, streamer.getStatusText(), listX + 4, statusY + 4, ChatColors.STATUS_TEXT);
         }
 
         graphics.disableScissor();
@@ -146,7 +150,7 @@ public class MessageListWidget extends AbstractWidget {
             currentY += h;
         }
         // Also check streaming placeholder
-        if (streamer.hasStreamingContent()) {
+        if (streamer.isStreaming() && (streamer.hasStreamingContent() || streamer.hasReasoningContent())) {
             ChatMessage placeholder = new ChatMessage("assistant",
                     streamer.getCurrentContent(), null, null, null,
                     streamer.hasReasoningContent() ? streamer.getReasoningContent() : null);
@@ -223,7 +227,7 @@ public class MessageListWidget extends AbstractWidget {
         for (ChatMessage msg : thread.getMessages()) {
             total += new ChatMessageWidget(msg, contentWidth, expandedReasonings).getHeight(font, getWidth());
         }
-        if (streamer.hasStreamingContent()) {
+        if (streamer.isStreaming() && (streamer.hasStreamingContent() || streamer.hasReasoningContent())) {
             ChatMessage placeholder = new ChatMessage("assistant",
                     streamer.getCurrentContent(), null, null, null,
                     streamer.hasReasoningContent() ? streamer.getReasoningContent() : null);

@@ -17,6 +17,7 @@
   "agentchat.button.save": "Save",
   "agentchat.button.cancel": "Cancel",
   "agentchat.button.config": "Config",
+  "agentchat.button.delete": "Delete",
   "agentchat.command.config_opened": "Config screen opened",
   "agentchat.command.key_set": "API Key updated",
   "agentchat.command.clear_success": "Current conversation cleared",

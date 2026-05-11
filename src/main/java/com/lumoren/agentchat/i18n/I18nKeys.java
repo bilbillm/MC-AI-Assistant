@@ -39,6 +39,8 @@ public final class I18nKeys {
     public static final String BUTTON_CANCEL = "agentchat.button.cancel";
     /** 配置按钮 */
     public static final String BUTTON_CONFIG = "agentchat.button.config";
+    /** 删除按钮 */
+    public static final String BUTTON_DELETE = "agentchat.button.delete";
 
     // ==================== LOADING ====================
     /** AI 思考中 */

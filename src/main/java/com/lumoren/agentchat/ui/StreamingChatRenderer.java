@@ -51,7 +51,7 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
     public void startStreaming() {
         this.currentContent.setLength(0);
         this.reasoningContent.setLength(0);
-        this.statusText = "AI is thinking";
+        this.statusText = null; // no "thinking" placeholder — reasoning content replaces it
         this.errorText = null;
         this.streaming = true;
         this.completed = false;

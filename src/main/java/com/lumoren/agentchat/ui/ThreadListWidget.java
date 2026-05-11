@@ -1,132 +1,147 @@
 package com.lumoren.agentchat.ui;
 
-import com.lumoren.agentchat.i18n.I18nHelper;
 import com.lumoren.agentchat.model.ConversationThread;
-import com.lumoren.agentchat.persistence.ConversationManager;
-import net.minecraft.client.Minecraft;
+import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
 
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Scrollable thread list sidebar panel. Rendered through widget pipeline for crisp text.
- * Supports collapse/expand via toggle button.
+ * Collapsible thread list sidebar. Items are independent widgets.
+ * Collapse/expand notifies parent via callback for layout rebuild.
  */
 public class ThreadListWidget extends AbstractWidget {
 
     private static final int PANEL_WIDTH = 180;
-    private static final int ITEM_HEIGHT = 28;
-    private static final int TOGGLE_SIZE = 14;
+    private static final int TOGGLE_WIDTH = 18;
+    private static final int HEADER_HEIGHT = 18;
+    private static final int ITEM_HEIGHT = ThreadItemWidget.getItemHeight();
 
-    private List<ConversationThread> threads = List.of();
+    private final List<ConversationThread> threads = new ArrayList<>();
     private String currentThreadId;
-    private int scroll;
     private boolean collapsed;
     private Font font;
     private Consumer<ConversationThread> onSelect;
+    private Runnable onToggle;
 
-    public ThreadListWidget(Consumer<ConversationThread> onSelect) {
+    private final List<ThreadItemWidget> itemWidgets = new ArrayList<>();
+    private int scroll;
+
+    public ThreadListWidget(Consumer<ConversationThread> onSelect, Runnable onToggle) {
         super(8, 8, PANEL_WIDTH, 100, Component.empty());
         this.onSelect = onSelect;
+        this.onToggle = onToggle;
         this.collapsed = false;
-        this.active = false;
     }
 
     public void refresh(List<ConversationThread> threads, String currentId, int screenHeight, Font font) {
-        this.threads = threads;
+        this.threads.clear();
+        this.threads.addAll(threads);
         this.currentThreadId = currentId;
         this.font = font;
         setHeight(screenHeight - 16);
+        rebuildItemWidgets();
     }
 
-    public void setCollapsed(boolean c) { this.collapsed = c; }
     public boolean isCollapsed() { return collapsed; }
-    public int getEffectiveWidth() { return collapsed ? TOGGLE_SIZE + 4 : PANEL_WIDTH; }
+    public int getEffectiveWidth() { return collapsed ? TOGGLE_WIDTH : PANEL_WIDTH; }
+    public int getScroll() { return scroll; }
+    public void setScroll(int s) { this.scroll = Math.max(0, s); }
+
+    public void setCollapsed(boolean c) {
+        setCollapsed(c, true);
+    }
+
+    /** Set collapsed state. If notify=true, trigger onToggle callback. */
+    private void setCollapsed(boolean c, boolean notify) {
+        if (this.collapsed != c) {
+            this.collapsed = c;
+            rebuildItemWidgets();
+            if (notify && onToggle != null) onToggle.run();
+        }
+    }
 
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         if (font == null) return;
-        int px = getX(), py = getY(), pw = getWidth(), ph = getHeight();
+        int px = getX(), py = getY(), pw = PANEL_WIDTH, ph = getHeight();
 
         if (collapsed) {
-            // Small toggle tab
-            graphics.fill(px, py, px + TOGGLE_SIZE + 4, py + 40, 0xCC1F2937);
-            graphics.fill(px + TOGGLE_SIZE + 3, py, px + TOGGLE_SIZE + 4, py + 40, 0xFF374151);
-            String arrow = isHoveringToggle(mouseX, mouseY) ? "▶" : "▶";
-            // Note: vanilla MC 1.21.1 may not render ▶ well; use ">" instead
-            graphics.drawString(font, ">", px + 3, py + 12, 0xFF9CA3AF);
-            graphics.drawString(font, ">", px + 1, py + 24, 0xFF9CA3AF);
+            renderCollapsed(graphics, mouseX, mouseY, px, py);
             return;
         }
 
-        // Panel background
-        graphics.fill(px, py, px + pw, py + ph, 0xCC1F2937);
-        graphics.fill(px + pw, py, px + pw + 1, py + ph, 0xFF374151);
+        graphics.fill(px, py, px + pw, py + ph, ChatColors.BG_SIDEBAR);
+        graphics.fill(px + pw, py, px + pw + 1, py + ph, ChatColors.SEPARATOR_SIDEBAR);
 
-        // Header row: title + collapse button
-        graphics.drawString(font, Component.literal("对话历史"), px + 6, py + 4, 0xFF9CA3AF);
-        String toggleLabel = isHoveringToggle(mouseX, mouseY) ? "◀" : "◀";
-        graphics.drawString(font, "<", px + pw - 16, py + 4, 0xFF9CA3AF);
+        // Header
+        graphics.drawString(font, Component.literal("对话历史"), px + 6, py + 3, ChatColors.TEXT_DIM);
+        boolean hoverToggle = mouseX >= px + pw - TOGGLE_WIDTH && mouseX <= px + pw
+                && mouseY >= py && mouseY <= py + HEADER_HEIGHT;
+        graphics.drawString(font, "<", px + pw - 14, py + 3,
+                hoverToggle ? ChatColors.TEXT_PRIMARY : ChatColors.TEXT_DIM);
 
-        // Thread items
-        int itemY = py + 22;
-        int visibleH = ph - 24;
+        // Items
+        int itemY = py + HEADER_HEIGHT + 2;
+        int visibleH = ph - HEADER_HEIGHT - 2;
         int totalH = threads.size() * ITEM_HEIGHT;
         int maxScroll = Math.max(0, totalH - visibleH);
         scroll = Math.max(0, Math.min(scroll, maxScroll));
 
         graphics.enableScissor(px, itemY, px + pw, py + ph);
         int y = itemY - scroll;
-        for (ConversationThread t : threads) {
-            boolean isCurrent = t.getId().equals(currentThreadId);
-            int bg = 0;
-            if (isCurrent) bg = 0xFF374151;
-            else if (mouseX >= px && mouseX <= px + pw && mouseY >= y && mouseY <= y + ITEM_HEIGHT - 2)
-                bg = 0xFF4B5563;
-            if (bg != 0) graphics.fill(px + 2, y, px + pw - 2, y + ITEM_HEIGHT - 2, bg);
-
-            String name = t.getName();
-            if (font.width(name) > pw - 20) name = font.plainSubstrByWidth(name, pw - 24) + "..";
-            graphics.drawString(font, name, px + 8, y + 2, isCurrent ? 0xFFFFFFFF : 0xFFD1D5DB);
-            graphics.drawString(font, t.messageCount() + " msgs", px + 8, y + 15, 0xFF6B7280);
+        for (ThreadItemWidget w : itemWidgets) {
+            w.setX(px + 2);
+            w.setY(y);
+            w.setWidth(pw - 4);
+            w.render(graphics, mouseX, mouseY, partialTick);
             y += ITEM_HEIGHT;
         }
         graphics.disableScissor();
     }
 
+    private void renderCollapsed(GuiGraphics graphics, int mx, int my, int px, int py) {
+        graphics.fill(px, py, px + TOGGLE_WIDTH, py + 40, ChatColors.BG_SIDEBAR);
+        graphics.fill(px + TOGGLE_WIDTH - 1, py, px + TOGGLE_WIDTH, py + 40, ChatColors.SEPARATOR_SIDEBAR);
+        int color = (mx >= px && mx <= px + TOGGLE_WIDTH && my >= py && my <= py + 40)
+                ? ChatColors.TEXT_PRIMARY : ChatColors.TEXT_DIM;
+        graphics.drawString(font, ">", px + 4, py + 12, color);
+        graphics.drawString(font, ">", px + 4, py + 24, color);
+    }
+
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (button != 0) return false;
-        int px = getX(), py = getY(), pw = getWidth();
+        int px = getX(), py = getY();
 
-        // Toggle button
         if (collapsed) {
-            if (mx >= px && mx <= px + TOGGLE_SIZE + 4 && my >= py && my <= py + 40) {
-                collapsed = false;
+            if (mx >= px && mx <= px + TOGGLE_WIDTH && my >= py && my <= py + 40) {
+                setCollapsed(false);
                 return true;
             }
             return false;
         }
-        if (mx >= px + pw - 16 && mx <= px + pw && my >= py + 4 && my <= py + 16) {
-            collapsed = true;
+        if (mx >= px + PANEL_WIDTH - TOGGLE_WIDTH && mx <= px + PANEL_WIDTH
+                && my >= py && my <= py + HEADER_HEIGHT) {
+            setCollapsed(true);
             return true;
         }
 
-        // Thread items
-        if (mx >= px && mx <= px + pw && my >= py + 22 && my <= py + getHeight()) {
-            int y = py + 22 - scroll;
-            for (ConversationThread t : threads) {
-                if (my >= y && my <= y + ITEM_HEIGHT - 2) {
-                    if (onSelect != null) onSelect.accept(t);
-                    return true;
-                }
-                y += ITEM_HEIGHT;
+        // Item click — compute positions from scroll, not widget state
+        int itemY = py + HEADER_HEIGHT + 2;
+        int itemEnd = itemY - scroll;
+        for (int i = 0; i < threads.size(); i++) {
+            int iy = itemEnd + i * ITEM_HEIGHT;
+            if (mx >= px + 2 && mx <= px + PANEL_WIDTH - 2
+                    && my >= iy && my <= iy + ITEM_HEIGHT - 2) {
+                if (onSelect != null) onSelect.accept(threads.get(i));
+                return true;
             }
         }
         return false;
@@ -135,9 +150,9 @@ public class ThreadListWidget extends AbstractWidget {
     @Override
     public boolean mouseScrolled(double mx, double my, double sx, double sy) {
         if (collapsed) return false;
-        int px = getX(), py = getY();
-        if (mx >= px && mx <= px + getWidth() && my >= py && my <= py + getHeight()) {
-            int visibleH = getHeight() - 24;
+        if (mx >= getX() && mx <= getX() + PANEL_WIDTH
+                && my >= getY() && my <= getY() + getHeight()) {
+            int visibleH = getHeight() - HEADER_HEIGHT - 2;
             int totalH = threads.size() * ITEM_HEIGHT;
             int maxScroll = Math.max(0, totalH - visibleH);
             scroll -= (int) (sy * 20);
@@ -150,11 +165,11 @@ public class ThreadListWidget extends AbstractWidget {
     @Override
     protected void updateWidgetNarration(NarrationElementOutput output) {}
 
-    private boolean isHoveringToggle(int mx, int my) {
-        int px = getX(), py = getY(), pw = getWidth();
-        if (collapsed) {
-            return mx >= px && mx <= px + TOGGLE_SIZE + 4 && my >= py && my <= py + 40;
+    private void rebuildItemWidgets() {
+        itemWidgets.clear();
+        for (ConversationThread t : threads) {
+            itemWidgets.add(new ThreadItemWidget(0, 0, PANEL_WIDTH - 4, t,
+                    t.getId().equals(currentThreadId), font));
         }
-        return mx >= px + pw - 16 && mx <= px + pw && my >= py + 4 && my <= py + 16;
     }
 }

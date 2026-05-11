@@ -17,6 +17,7 @@
   "agentchat.button.save": "保存",
   "agentchat.button.cancel": "取消",
   "agentchat.button.config": "配置",
+  "agentchat.button.delete": "删除",
   "agentchat.command.config_opened": "配置界面已打开",
   "agentchat.command.key_set": "API Key 已更新",
   "agentchat.command.clear_success": "当前对话已清空",
