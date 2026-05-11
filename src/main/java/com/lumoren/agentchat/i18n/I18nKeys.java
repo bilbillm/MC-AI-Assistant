@@ -37,6 +37,8 @@ public final class I18nKeys {
     public static final String BUTTON_SAVE = "agentchat.button.save";
     /** 取消按钮 */
     public static final String BUTTON_CANCEL = "agentchat.button.cancel";
+    /** 配置按钮 */
+    public static final String BUTTON_CONFIG = "agentchat.button.config";
 
     // ==================== LOADING ====================
     /** AI 思考中 */
@@ -71,12 +73,14 @@ public final class I18nKeys {
     public static final String CONFIG_TEMPERATURE = "agentchat.config.temperature";
     /** 最大 Token */
     public static final String CONFIG_MAX_TOKENS = "agentchat.config.max_tokens";
-    /** 侧边栏位置 */
-    public static final String CONFIG_SIDEBAR_POSITION = "agentchat.config.sidebar_position";
-    /** 侧边栏宽度 */
-    public static final String CONFIG_SIDEBAR_WIDTH = "agentchat.config.sidebar_width";
     /** API 地址 */
     public static final String CONFIG_BASE_URL = "agentchat.config.base_url";
+
+    // ==================== CONFIG HINTS ====================
+    public static final String CONFIG_HINT_API_KEY = "agentchat.config.hint.api_key";
+    public static final String CONFIG_HINT_BASE_URL = "agentchat.config.hint.base_url";
+    public static final String CONFIG_HINT_MODEL = "agentchat.config.hint.model";
+    public static final String CONFIG_HINT_MAX_TOKENS = "agentchat.config.hint.max_tokens";
 
     // ==================== KEY BINDINGS ====================
     /** 按键分类名 */

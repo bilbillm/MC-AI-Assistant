@@ -21,8 +21,6 @@ public class ConfigManager {
     public double getTemperature() { return Config.TEMPERATURE.get(); }
     public int getMaxTokens() { return Config.MAX_TOKENS.get(); }
     public int getMaxHistory() { return Config.MAX_HISTORY.get(); }
-    public String getSidebarPosition() { return Config.SIDEBAR_POSITION.get(); }
-    public int getSidebarWidth() { return Config.SIDEBAR_WIDTH.get(); }
     public int getTimeout() { return Config.TIMEOUT.get(); }
     public String getApiKey() { return secrets.getApiKey(); }
     public boolean hasApiKey() { return secrets.getApiKey() != null && !secrets.getApiKey().isBlank(); }

@@ -5,14 +5,12 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public class Config {
     public static final ModConfigSpec SPEC;
 
-    // 8 config items with defaults and ranges
+    // 6 config items with defaults and ranges
     public static final ModConfigSpec.ConfigValue<String> BASE_URL;
     public static final ModConfigSpec.ConfigValue<String> MODEL;
     public static final ModConfigSpec.DoubleValue TEMPERATURE;
     public static final ModConfigSpec.IntValue MAX_TOKENS;
     public static final ModConfigSpec.IntValue MAX_HISTORY;
-    public static final ModConfigSpec.ConfigValue<String> SIDEBAR_POSITION;
-    public static final ModConfigSpec.IntValue SIDEBAR_WIDTH;
     public static final ModConfigSpec.IntValue TIMEOUT;
 
     static {
@@ -40,19 +38,16 @@ public class Config {
                 .comment("Maximum conversation turns to keep in history (10-1000)")
                 .defineInRange("maxHistory", 200, 10, 1000);
 
-        SIDEBAR_POSITION = builder
-                .comment("Sidebar position: LEFT or RIGHT")
-                .define("sidebarPosition", "RIGHT");
-
-        SIDEBAR_WIDTH = builder
-                .comment("Sidebar width as percentage of screen (20-50)")
-                .defineInRange("sidebarWidth", 30, 20, 50);
-
         TIMEOUT = builder
                 .comment("HTTP request timeout in seconds (5-120)")
                 .defineInRange("timeout", 30, 5, 120);
 
         builder.pop();
         SPEC = builder.build();
+    }
+
+    /** Persist current in-memory config values to the TOML file on disk. */
+    public static void save() {
+        SPEC.save();
     }
 }
