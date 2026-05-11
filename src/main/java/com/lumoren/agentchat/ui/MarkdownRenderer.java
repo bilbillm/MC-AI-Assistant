@@ -4,27 +4,24 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.ChatFormatting;
-import net.minecraft.resources.ResourceLocation;
 
 /**
  * Lightweight Markdown-to-Component converter.
  * <p>
  * Converts a subset of Markdown formatting into Minecraft {@link Component} trees
- * with appropriate {@link Style} annotations (bold, italic, code, lists, code blocks).
+ * with appropriate {@link Style} annotations (bold, italic, code formatting).
  * <p>
  * Supported syntax:
  * <ul>
  *   <li>{@code **bold**} — bold text</li>
  *   <li>{@code *italic*} — italic text</li>
- *   <li>{@code `code`} — inline code (gray + uniform font)</li>
- *   <li>{@code ```code block```} — fenced code block</li>
+ *   <li>{@code `code`} — inline code (gray)</li>
+ *   <li>{@code ```code block```} — fenced code block (dark gray)</li>
  *   <li>{@code - item} — bullet list items</li>
  *   <li>Paragraphs separated by double newlines</li>
  * </ul>
  */
 public final class MarkdownRenderer {
-
-    private static final ResourceLocation CODE_FONT = ResourceLocation.withDefaultNamespace("uniform");
 
     private MarkdownRenderer() {
     }
@@ -111,9 +108,7 @@ public final class MarkdownRenderer {
         String[] codeLines = content.split("\n", -1);
         for (int i = 0; i < codeLines.length; i++) {
             MutableComponent codeLine = Component.literal(codeLines[i])
-                    .withStyle(Style.EMPTY
-                            .withColor(ChatFormatting.DARK_GRAY)
-                            .withFont(CODE_FONT));
+                    .withStyle(Style.EMPTY.withColor(ChatFormatting.DARK_GRAY));
             block.append(codeLine);
             if (i < codeLines.length - 1) {
                 block.append(Component.literal("\n"));
@@ -183,8 +178,7 @@ public final class MarkdownRenderer {
                     String inner = text.substring(i + 1, end);
                     result.append(Component.literal(inner)
                             .withStyle(Style.EMPTY
-                                    .withColor(ChatFormatting.DARK_GRAY)
-                                    .withFont(CODE_FONT)));
+                                    .withColor(ChatFormatting.DARK_GRAY)));
                     i = end + 1;
                     continue;
                 }
