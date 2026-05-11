@@ -49,6 +49,7 @@ public class OpenAICompatClient {
 
     public interface StreamCallback {
         void onToken(String token);
+        default void onReasoningToken(String token) {}
         void onComplete();
         void onError(Throwable error);
     }
@@ -153,6 +154,12 @@ public class OpenAICompatClient {
                 JsonElement content = message.get("content");
                 String contentStr = content != null && !content.isJsonNull() ? content.getAsString() : "";
 
+                // DeepSeek thinking mode: preserve reasoning_content for tool-call continuity
+                String reasoning = null;
+                if (message.has("reasoning_content") && !message.get("reasoning_content").isJsonNull()) {
+                    reasoning = message.get("reasoning_content").getAsString();
+                }
+
                 JsonArray toolCallsArray = message.getAsJsonArray("tool_calls");
                 List<ChatMessage.ToolCall> toolCalls = null;
                 if (toolCallsArray != null && !toolCallsArray.isEmpty()) {
@@ -167,7 +174,7 @@ public class OpenAICompatClient {
                     }
                 }
 
-                return new ChatMessage("assistant", contentStr, null, toolCalls, null);
+                return new ChatMessage("assistant", contentStr, null, toolCalls, null, reasoning);
             });
     }
 
@@ -207,6 +214,14 @@ public class OpenAICompatClient {
                                             String token = content.getAsString();
                                             if (token != null && !token.isEmpty()) {
                                                 dispatchToMainThread(() -> callback.onToken(token));
+                                            }
+                                        }
+                                        // Also capture reasoning_content from delta (DeepSeek thinking)
+                                        JsonElement reasoning = delta.get("reasoning_content");
+                                        if (reasoning != null && !reasoning.isJsonNull()) {
+                                            String r = reasoning.getAsString();
+                                            if (r != null && !r.isEmpty()) {
+                                                dispatchToMainThread(() -> callback.onReasoningToken(r));
                                             }
                                         }
                                     }
@@ -257,9 +272,18 @@ public class OpenAICompatClient {
         if (msg.content() != null && !msg.content().isEmpty()) {
             obj.addProperty("content", msg.content());
         } else if ("assistant".equals(msg.role()) && msg.toolCalls() != null && !msg.toolCalls().isEmpty()) {
-            obj.add("content", JsonNull.INSTANCE);
+            obj.addProperty("content", "");
         } else {
             obj.addProperty("content", "");
+        }
+
+        // DeepSeek thinking mode: must pass reasoning_content back to API
+        if (msg.reasoningContent() != null && !msg.reasoningContent().isBlank()) {
+            obj.addProperty("reasoning_content", msg.reasoningContent());
+        }
+
+        if (msg.toolCallId() != null) {
+            obj.addProperty("tool_call_id", msg.toolCallId());
         }
 
         if (msg.toolCallId() != null) {
@@ -342,7 +366,14 @@ public class OpenAICompatClient {
             }
         }
         if (status >= 400) {
-            return CompletableFuture.failedFuture(new RuntimeException("API error: HTTP " + status));
+            String errorBody = "";
+            try {
+                if (response.body() instanceof String bodyStr) {
+                    errorBody = bodyStr;
+                }
+            } catch (Exception ignored) {}
+            return CompletableFuture.failedFuture(
+                new RuntimeException("API error: HTTP " + status + " — " + errorBody));
         }
         return CompletableFuture.completedFuture(response);
     }

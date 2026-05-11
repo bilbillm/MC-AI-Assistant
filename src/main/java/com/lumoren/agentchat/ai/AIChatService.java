@@ -41,6 +41,9 @@ public class AIChatService {
         /** Called for each streamed token in the final response. */
         void onToken(String token);
 
+        /** Called for reasoning/thinking tokens (DeepSeek thinking mode). */
+        default void onReasoningToken(String token) {}
+
         /** Called when a tool is about to be executed. */
         void onThinking(String status);
 
@@ -110,6 +113,11 @@ public class AIChatService {
                         public void onToken(String token) {
                             callback.onToken(token);
                             fullResponse.append(token);
+                        }
+
+                        @Override
+                        public void onReasoningToken(String token) {
+                            callback.onReasoningToken(token);
                         }
 
                         @Override
