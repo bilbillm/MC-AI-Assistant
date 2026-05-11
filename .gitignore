@@ -16,7 +16,8 @@ runs/
 Thumbs.db
 
 # Secrets (API keys!)
-run/config/mcaiassistant-secrets.json
+**/agentchat-secrets.json
+**/mcaiassistant-secrets.json
 
 # Logs
 logs/
