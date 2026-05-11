@@ -9,6 +9,8 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import org.slf4j.Logger;
 
+import java.util.function.Supplier;
+
 @Mod(AgentChat.MODID)
 public class AgentChat {
     public static final String MODID = "agentchat";
@@ -19,6 +21,7 @@ public class AgentChat {
         AgentChat.MOD_CONTAINER = modContainer;
         LOGGER.info("MC-AI-Assistant (AgentChat) initializing...");
         modContainer.registerConfig(ModConfig.Type.CLIENT, com.lumoren.agentchat.config.Config.SPEC);
-        modContainer.registerExtensionPoint(IConfigScreenFactory.class, (java.util.function.Supplier<IConfigScreenFactory>) () -> (mc, parent) -> new ConfigScreen(parent));
+        modContainer.registerExtensionPoint(IConfigScreenFactory.class,
+                (Supplier<IConfigScreenFactory>) () -> (mc, parent) -> new ConfigScreen(parent));
     }
 }

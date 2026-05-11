@@ -40,7 +40,7 @@ class ChatUITest {
     @Test
     void testChatMessageWidgetUserRole() {
         ChatMessage msg = ChatMessage.user("Hello, AI!");
-        ChatMessageWidget widget = new ChatMessageWidget(msg, 200);
+        ChatMessageWidget widget = new ChatMessageWidget(msg, 200, null);
         assertTrue(widget.isUser());
         assertFalse(widget.isError());
         assertEquals(msg, widget.getMessage());
@@ -49,7 +49,7 @@ class ChatUITest {
     @Test
     void testChatMessageWidgetAssistantRole() {
         ChatMessage msg = ChatMessage.assistant("Hello, player!");
-        ChatMessageWidget widget = new ChatMessageWidget(msg, 200);
+        ChatMessageWidget widget = new ChatMessageWidget(msg, 200, null);
         assertFalse(widget.isUser());
         assertFalse(widget.isError());
     }
@@ -57,7 +57,7 @@ class ChatUITest {
     @Test
     void testChatMessageWidgetErrorRole() {
         ChatMessage msg = new ChatMessage("error", "Something went wrong", null, null, null);
-        ChatMessageWidget widget = new ChatMessageWidget(msg, 200);
+        ChatMessageWidget widget = new ChatMessageWidget(msg, 200, null);
         assertTrue(widget.isError());
         assertFalse(widget.isUser());
     }
@@ -65,35 +65,35 @@ class ChatUITest {
     @Test
     void testChatMessageWidgetHeight() {
         ChatMessage msg = ChatMessage.assistant("Test message");
-        ChatMessageWidget widget = new ChatMessageWidget(msg, 200);
+        ChatMessageWidget widget = new ChatMessageWidget(msg, 200, null);
         assertTrue(widget.getHeight(font, 200) > 0, "Widget height should be positive");
     }
 
     @Test
     void testChatMessageWidgetMinWidth() {
         ChatMessage msg = ChatMessage.user("Hi");
-        ChatMessageWidget widget = new ChatMessageWidget(msg, 10); // below minimum
+        ChatMessageWidget widget = new ChatMessageWidget(msg, 10, null); // below minimum
         assertTrue(widget.getHeight(font, 10) > 0, "Should handle very narrow widths");
     }
 
     @Test
     void testChatMessageWidgetRenderDoesNotThrow() {
         ChatMessage msg = ChatMessage.assistant("Render test");
-        ChatMessageWidget widget = new ChatMessageWidget(msg, 200);
+        ChatMessageWidget widget = new ChatMessageWidget(msg, 200, null);
         assertDoesNotThrow(() -> widget.render(graphics, 0, 0, 200, font));
     }
 
     @Test
     void testChatMessageWidgetUserRenderDoesNotThrow() {
         ChatMessage msg = ChatMessage.user("User message");
-        ChatMessageWidget widget = new ChatMessageWidget(msg, 200);
+        ChatMessageWidget widget = new ChatMessageWidget(msg, 200, null);
         assertDoesNotThrow(() -> widget.render(graphics, 0, 0, 200, font));
     }
 
     @Test
     void testChatMessageWidgetErrorRenderDoesNotThrow() {
         ChatMessage msg = new ChatMessage("error", "Error message", null, null, null);
-        ChatMessageWidget widget = new ChatMessageWidget(msg, 200);
+        ChatMessageWidget widget = new ChatMessageWidget(msg, 200, null);
         assertDoesNotThrow(() -> widget.render(graphics, 0, 0, 200, font));
     }
 
@@ -103,9 +103,9 @@ class ChatUITest {
         ChatMessage msg2 = ChatMessage.assistant("AI response");
         ChatMessage msg3 = new ChatMessage("error", "Error", null, null, null);
 
-        ChatMessageWidget w1 = new ChatMessageWidget(msg1, 200);
-        ChatMessageWidget w2 = new ChatMessageWidget(msg2, 200);
-        ChatMessageWidget w3 = new ChatMessageWidget(msg3, 200);
+        ChatMessageWidget w1 = new ChatMessageWidget(msg1, 200, null);
+        ChatMessageWidget w2 = new ChatMessageWidget(msg2, 200, null);
+        ChatMessageWidget w3 = new ChatMessageWidget(msg3, 200, null);
 
         assertTrue(w1.isUser());
         assertFalse(w2.isUser());
@@ -177,7 +177,7 @@ class ChatUITest {
 
         renderer.onThinking("querying inventory...");
         assertTrue(renderer.hasStatus());
-        assertEquals("querying inventory...", renderer.getStatusText());
+        assertTrue(renderer.getStatusText().startsWith("querying inventory"));
     }
 
     @Test

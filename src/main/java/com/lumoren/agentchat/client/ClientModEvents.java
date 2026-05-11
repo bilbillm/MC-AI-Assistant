@@ -14,7 +14,7 @@ import org.lwjgl.glfw.GLFW;
  * MOD-bus event subscriber for client-side key binding registration.
  * <p>
  * Registers the backtick/grave accent key mapping for opening the
- * AI chat screen and toggling sidebar input focus in the inventory screen.
+ * AI chat screen.
  * <p>
  * The actual key press handling is in {@link ClientEventHandler}.
  */

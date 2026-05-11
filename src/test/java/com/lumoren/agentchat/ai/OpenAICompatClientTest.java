@@ -93,7 +93,7 @@ class OpenAICompatClientTest {
     }
 
     @Test
-    void buildRequestBody_assistantWithToolCalls_hasNullContent() {
+    void buildRequestBody_assistantWithToolCalls_hasNullOrEmptyContent() {
         var function = new ChatMessage.FunctionCall("get_time", "{}");
         var toolCall = new ChatMessage.ToolCall("call_999", function);
         ChatMessage msg = new ChatMessage("assistant", "", null, List.of(toolCall), null);
@@ -101,7 +101,8 @@ class OpenAICompatClientTest {
         JsonObject body = client.buildRequestBody(List.of(msg), null, false);
         var msgs = body.getAsJsonArray("messages");
         assertEquals(1, msgs.size());
-        assertTrue(msgs.get(0).getAsJsonObject().get("content").isJsonNull());
+        // Content should be empty string (not null) — some APIs reject null
+        assertEquals("", msgs.get(0).getAsJsonObject().get("content").getAsString());
         assertTrue(msgs.get(0).getAsJsonObject().has("tool_calls"));
     }
 
