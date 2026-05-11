@@ -26,6 +26,7 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
     private final Runnable onUpdate;
 
     private final StringBuilder currentContent = new StringBuilder();
+    private final StringBuilder reasoningContent = new StringBuilder();
     private String statusText;
     private String errorText;
     private boolean streaming;
@@ -46,11 +47,11 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
 
     /**
      * Start tracking a new streaming response.
-     * Resets all streaming state and marks the renderer as actively streaming.
      */
     public void startStreaming() {
         this.currentContent.setLength(0);
-        this.statusText = null;
+        this.reasoningContent.setLength(0);
+        this.statusText = "AI is thinking";
         this.errorText = null;
         this.streaming = true;
         this.completed = false;
@@ -71,8 +72,18 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
     }
 
     @Override
+    public void onReasoningToken(String token) {
+        if (!streaming) {
+            startStreaming();
+        }
+        reasoningContent.append(token);
+        notifyUpdate();
+    }
+
+    @Override
     public void onThinking(String status) {
-        this.statusText = status;
+        // Strip trailing dots so animated dots are clean
+        this.statusText = status.replaceAll("\\.+$", "");
         notifyUpdate();
     }
 
@@ -82,6 +93,7 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
         this.hasError = true;
         this.streaming = false;
         this.completed = true;
+        this.statusText = null; // clear thinking/status so only red error shows
 
         // Add error message to conversation thread
         thread.addMessage(new ChatMessage("error", error, null, null, null));
@@ -94,8 +106,9 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
         this.completed = true;
         this.statusText = null;
 
-        // Add the completed assistant message to the thread
-        thread.addMessage(ChatMessage.assistant(fullResponse));
+        // Add the completed assistant message with reasoning content
+        String reasoning = reasoningContent.length() > 0 ? reasoningContent.toString() : null;
+        thread.addMessage(ChatMessage.assistant(fullResponse, reasoning));
         notifyUpdate();
     }
 
@@ -108,11 +121,24 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
         return currentContent.toString();
     }
 
+    /** @return the currently accumulated reasoning content (DeepSeek thinking) */
+    public String getReasoningContent() {
+        return reasoningContent.toString();
+    }
+
+    /** @return true if there is reasoning content to display */
+    public boolean hasReasoningContent() {
+        return reasoningContent.length() > 0;
+    }
+
     /**
-     * @return current status text (e.g. "AI is thinking...", "querying inventory...")
+     * @return current status text with animated dots (e.g. "AI is thinking." → ".." → "...")
      */
     public String getStatusText() {
-        return statusText;
+        if (statusText == null) return null;
+        // Animate dots: cycle through "", ".", "..", "..." every 500ms
+        int dotCount = (int) (System.currentTimeMillis() % 2000 / 500);
+        return statusText + ".".repeat(dotCount);
     }
 
     /**

@@ -6,6 +6,7 @@ import com.lumoren.agentchat.i18n.I18nHelper;
 import com.lumoren.agentchat.i18n.I18nKeys;
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ConversationThread;
+import com.lumoren.agentchat.persistence.ConversationManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -13,230 +14,234 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+import java.util.Comparator;
 import java.util.List;
 
 /**
- * Full-screen AI chat overlay screen.
- * <p>
- * Opens when the user presses the backtick key outside of inventory.
- * Does not pause the game ({@link #isPauseScreen()} returns {@code false}).
- * <p>
- * Layout:
- * <pre>
- *  +------------------------------------------+
- *  |  AI Assistant                    [New]    |
- *  |                                           |
- *  |  +------ Message List Area ------------+  |
- *  |  |                                      |  |
- *  |  |  (user/ai message bubbles)           |  |
- *  |  |                                      |  |
- *  |  +--------------------------------------+  |
- *  |                                           |
- *  |  [ Input field _________________ ][Send]  |
- *  +------------------------------------------+
- * </pre>
+ * AI chat screen with persistent conversation history.
+ * Left sidebar: ThreadListWidget (collapsible). Right: chat + input.
  */
 public class AIChatScreen extends Screen {
 
     private static final int PADDING = 8;
     private static final int INPUT_HEIGHT = 20;
-    private static final int BUTTON_WIDTH = 60;
-    private static final int NEW_CHAT_BUTTON_WIDTH = 80;
-    private static final int TITLE_HEIGHT = 30;
+    private static final int BUTTON_WIDTH = 50;
+    private static final int TITLE_HEIGHT = 20;
 
-    private final ConversationThread thread;
-    private final StreamingChatRenderer streamer;
+    private ConversationThread thread;
+    private StreamingChatRenderer streamer;
     private final AIChatService chatService;
 
+    private ThreadListWidget threadList;
     private MessageListWidget messageList;
     private EditBox inputField;
     private Button sendButton;
     private Button newChatButton;
+    private Button configButton;
+    private LabelWidget titleLabel;
 
-    /**
-     * Create a new AI chat screen with a fresh conversation thread.
-     */
+    private int lastSidebarWidth = -1; // track for dynamic layout
+
     public AIChatScreen() {
         super(I18nHelper.translate(I18nKeys.TITLE));
-        this.thread = new ConversationThread(I18nHelper.translateToString(I18nKeys.THREAD_NEW));
         this.chatService = ClientServiceManager.getChatService();
-        this.streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
-    }
-
-    /**
-     * Create a screen from an existing thread (for restoring conversations).
-     */
-    public AIChatScreen(ConversationThread existingThread) {
-        super(I18nHelper.translate(I18nKeys.TITLE));
-        this.thread = existingThread;
-        this.chatService = ClientServiceManager.getChatService();
-        this.streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
     }
 
     @Override
     protected void init() {
         super.init();
 
-        int contentLeft = PADDING;
-        int contentRight = width - PADDING;
-        int contentWidth = width - PADDING * 2;
+        var mgr = ConversationManager.getInstance();
+        this.thread = mgr != null ? mgr.getCurrentThread() : null;
+        if (this.thread == null) {
+            this.thread = new ConversationThread(I18nHelper.translateToString(I18nKeys.THREAD_NEW));
+        }
+        this.streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
 
-        // New Chat button (top right)
-        int newChatX = contentRight - NEW_CHAT_BUTTON_WIDTH;
-        this.newChatButton = this.addRenderableWidget(
-                Button.builder(
-                                I18nHelper.translate(I18nKeys.BUTTON_NEW_THREAD),
-                                this::onNewChat
-                        )
-                        .bounds(newChatX, PADDING, NEW_CHAT_BUTTON_WIDTH, 20)
-                        .build()
-        );
+        var threads = mgr != null ? mgr.getAllThreads().stream()
+                .sorted(Comparator.comparing(ConversationThread::getUpdatedAt).reversed()).toList()
+                : List.<ConversationThread>of();
 
-        // Message list area (between title area and input)
-        int listTop = PADDING + TITLE_HEIGHT;
-        int listBottom = height - PADDING - INPUT_HEIGHT - PADDING - 20; // 20 for send row
-        int listHeight = listBottom - listTop;
-        int listRight = contentRight;
-        int listWidth = listRight - contentLeft;
+        // Thread list sidebar (widget pipeline — crisp text)
+        this.threadList = new ThreadListWidget(this::switchToThread);
+        this.threadList.refresh(threads, thread.getId(), height, font);
+        this.addRenderableWidget(threadList);
 
+        int chatLeft = PADDING + threadList.getEffectiveWidth() + PADDING;
+        int chatRight = width - PADDING;
+
+        // Title
+        this.titleLabel = new LabelWidget(chatLeft, PADDING + 2,
+                I18nHelper.translateToString(I18nKeys.TITLE), 0xFFFFFFFF, font);
+        this.addRenderableWidget(this.titleLabel);
+
+        // New Chat & Config buttons
+        this.newChatButton = this.addRenderableWidget(Button.builder(
+                        I18nHelper.translate(I18nKeys.BUTTON_NEW_THREAD), this::onNewChat)
+                .bounds(chatRight - 140, PADDING, 70, 18).build());
+        this.configButton = this.addRenderableWidget(Button.builder(
+                        I18nHelper.translate(I18nKeys.BUTTON_CONFIG), this::onOpenConfig)
+                .bounds(chatRight - 65, PADDING, 55, 18).build());
+
+        // Message list
+        int listTop = PADDING + TITLE_HEIGHT + PADDING;
+        int listBottom = height - PADDING - INPUT_HEIGHT - PADDING - 20;
         this.messageList = new MessageListWidget(thread, streamer);
-        this.messageList.setBounds(contentLeft, listTop, listWidth, listHeight, font);
+        this.messageList.setBounds(chatLeft, listTop, chatRight - chatLeft, listBottom - listTop, font);
+        this.addRenderableWidget(messageList);
 
-        // Send button (bottom right)
-        int sendButtonX = contentRight - BUTTON_WIDTH;
-        int sendButtonY = height - PADDING - 20;
+        // Input + Send
+        int sendX = chatRight - BUTTON_WIDTH;
+        int inputY = height - PADDING - 20;
+        this.sendButton = this.addRenderableWidget(Button.builder(
+                        I18nHelper.translate(I18nKeys.BUTTON_SEND), this::onSend)
+                .bounds(sendX, inputY, BUTTON_WIDTH, 20).build());
+        this.sendButton.active = false;
 
-        this.sendButton = this.addRenderableWidget(
-                Button.builder(
-                                I18nHelper.translate(I18nKeys.BUTTON_SEND),
-                                this::onSend
-                        )
-                        .bounds(sendButtonX, sendButtonY, BUTTON_WIDTH, 20)
-                        .build()
-        );
-
-        // Input field (bottom left, next to send button)
-        int inputWidth = sendButtonX - PADDING - contentLeft;
-        this.inputField = new EditBox(
-                font,
-                contentLeft,
-                sendButtonY,
-                inputWidth,
-                20,
-                Component.literal("")
-        );
+        this.inputField = new EditBox(font, chatLeft, inputY,
+                sendX - chatLeft - PADDING, 20, Component.literal(""));
         this.inputField.setMaxLength(512);
         this.inputField.setHint(I18nHelper.translate(I18nKeys.INPUT_PLACEHOLDER));
         this.inputField.setResponder(this::onInputChanged);
         this.addRenderableWidget(inputField);
-
-        // Set initial focus to input
         this.setInitialFocus(inputField);
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // Background
+        // Dynamic layout: reposition chat widgets when sidebar collapses/expands
+        int currentSidebarW = threadList.getEffectiveWidth();
+        if (currentSidebarW != lastSidebarWidth) {
+            repositionForSidebar(currentSidebarW);
+            lastSidebarWidth = currentSidebarW;
+        }
+
         renderBackground(graphics, mouseX, mouseY, partialTick);
-
-        // Draw a semi-transparent dark background
         graphics.fill(0, 0, width, height, 0xCC111111);
-
-        // Draw title
-        graphics.drawString(
-                font,
-                I18nHelper.translate(I18nKeys.TITLE),
-                PADDING,
-                PADDING + 6,
-                0xFFFFFFFF,
-                false
-        );
-
-        // Render message list
-        messageList.render(graphics, mouseX, mouseY, partialTick);
-
-        // Render widgets (buttons, edit box) - these are rendered automatically
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
+    // ==================== Thread switching ====================
+
+    private void switchToThread(ConversationThread t) {
+        if (t.getId().equals(thread.getId())) return;
+        var mgr = ConversationManager.getInstance();
+        if (mgr != null) mgr.save();
+        thread = t;
+        streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
+        rebuildLayout();
+    }
+
+    private void rebuildLayout() {
+        lastSidebarWidth = -1; // force reposition on next render
+        this.clearWidgets();
+        this.children().clear();
+        this.renderables.clear();
+        init();
+    }
+
+    /** Reposition chat-area widgets when sidebar width changes. */
+    private void repositionForSidebar(int sidebarW) {
+        int chatLeft = PADDING + sidebarW + PADDING;
+        int chatRight = width - PADDING;
+        int listTop = PADDING + TITLE_HEIGHT + PADDING;
+        int listBottom = height - PADDING - INPUT_HEIGHT - PADDING - 20;
+        int sendX = chatRight - BUTTON_WIDTH;
+        int inputY = height - PADDING - 20;
+
+        // Title
+        if (titleLabel != null) titleLabel.setX(chatLeft);
+        // New Chat & Config buttons
+        if (newChatButton != null) newChatButton.setX(chatRight - 140);
+        if (configButton != null) configButton.setX(chatRight - 65);
+        // Message list
+        if (messageList != null) {
+            messageList.setX(chatLeft);
+            messageList.setWidth(chatRight - chatLeft);
+        }
+        // Input
+        if (inputField != null) {
+            inputField.setX(chatLeft);
+            inputField.setWidth(sendX - chatLeft - PADDING);
+        }
+        // Send button
+        if (sendButton != null) sendButton.setX(sendX);
+    }
+
+    private void refreshThreadList() {
+        var mgr = ConversationManager.getInstance();
+        if (mgr != null) {
+            threadList.refresh(mgr.getAllThreads().stream()
+                    .sorted(Comparator.comparing(ConversationThread::getUpdatedAt).reversed()).toList(),
+                    thread.getId(), height, font);
+        }
+    }
+
+    // ==================== Event handlers ====================
+
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // ESC closes the screen
-        if (keyCode == 256) { // GLFW_KEY_ESCAPE
-            this.onClose();
-            return true;
-        }
-
-        // Enter sends the message
-        if (keyCode == 257 || keyCode == 335) { // GLFW_KEY_ENTER or KP_ENTER
+        if (keyCode == 256) { this.onClose(); return true; }
+        if (keyCode == 257 || keyCode == 335) {
             if (inputField.isFocused() && !inputField.getValue().isBlank()) {
                 sendMessage(inputField.getValue());
                 return true;
             }
         }
-
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (messageList.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
+    public boolean isPauseScreen() { return false; }
 
     @Override
     public void onClose() {
+        var mgr = ConversationManager.getInstance();
+        if (mgr != null) mgr.save();
         Minecraft.getInstance().setScreen(null);
     }
 
-    // ==================== Event handlers ====================
-
-    private void onSend(Button button) {
+    private void onSend(Button b) {
         String text = inputField.getValue().strip();
-        if (!text.isEmpty()) {
-            sendMessage(text);
+        if (!text.isEmpty()) sendMessage(text);
+    }
+
+    private void onNewChat(Button b) {
+        var mgr = ConversationManager.getInstance();
+        if (mgr != null) {
+            mgr.save();
+            switchToThread(mgr.createThread());
+        } else {
+            thread = new ConversationThread(I18nHelper.translateToString(I18nKeys.THREAD_NEW));
+            streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
+            rebuildLayout();
         }
+        refreshThreadList();
     }
 
-    private void onNewChat(Button button) {
-        thread.clearMessages();
-        inputField.setValue("");
-        streamer.startStreaming(); // Reset streaming state
-        messageList.scrollToBottom();
+    private void onOpenConfig(Button b) {
+        var mgr = ConversationManager.getInstance();
+        if (mgr != null) mgr.save();
+        Minecraft.getInstance().setScreen(new ConfigScreen(this));
     }
 
-    private void onInputChanged(String text) {
-        sendButton.active = !text.isBlank();
-    }
-
-    private void onStreamUpdate() {
-        // Called from StreamingChatRenderer when state changes
-        // Triggers re-render by scheduling on the main thread
-        if (messageList != null) {
-            messageList.onMessageAdded();
-        }
-    }
+    private void onInputChanged(String text) { sendButton.active = !text.isBlank(); }
+    private void onStreamUpdate() { if (messageList != null) messageList.onMessageAdded(); }
 
     private void sendMessage(String text) {
-        // Add user message to thread (for immediate display)
         thread.addMessage(ChatMessage.user(text));
         inputField.setValue("");
         sendButton.active = false;
-
-        // Start streaming
         streamer.startStreaming();
         messageList.scrollToBottom();
-
-        // Pass history EXCLUDING the just-added user message, because
-        // AIChatService.sendMessage() internally adds the user message.
+        autoSave();
         List<ChatMessage> history = thread.getMessages().subList(0, thread.getMessages().size() - 1);
         chatService.sendMessage(text, history, streamer);
+        refreshThreadList();
+    }
+
+    private void autoSave() {
+        var mgr = ConversationManager.getInstance();
+        if (mgr != null) mgr.save();
     }
 }
