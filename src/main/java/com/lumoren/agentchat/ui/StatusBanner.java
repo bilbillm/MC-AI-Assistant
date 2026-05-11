@@ -87,7 +87,7 @@ public class StatusBanner {
             int textColor = 0xFFFFFFFF;
             int textX = x + 6;
             int textY = y + (height - font.lineHeight) / 2;
-            graphics.drawString(font, message, textX, textY, textColor, false);
+            graphics.drawString(font, message, textX, textY, textColor);
         }
     }
 
