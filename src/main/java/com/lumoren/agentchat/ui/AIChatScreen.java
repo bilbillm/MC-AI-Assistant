@@ -2,6 +2,7 @@ package com.lumoren.agentchat.ui;
 
 import com.lumoren.agentchat.ai.AIChatService;
 import com.lumoren.agentchat.ai.ProjectPlanningService;
+import com.lumoren.agentchat.ai.TestSuite;
 import com.lumoren.agentchat.client.ClientServiceManager;
 import com.lumoren.agentchat.i18n.I18nHelper;
 import com.lumoren.agentchat.i18n.I18nKeys;
@@ -328,6 +329,22 @@ public class AIChatScreen extends Screen {
     private void sendMessage(String text) {
         // Guard against concurrent message sends (rapid Enter presses)
         if (sending) return;
+
+        // Handle built-in test suite (debug mode only)
+        if (AIChatService.isDebugMode() && text.strip().equals("运行测试清单")) {
+            sending = true;
+            inputField.setValue("");
+            sendButton.active = false;
+            thread.addMessage(ChatMessage.system("[TEST SUITE STARTED]"));
+            List<ChatMessage> testHistory = new ArrayList<>();
+            testHistory.add(ChatMessage.system(TestSuite.TEST_SUITE_PROMPT));
+            testHistory.add(ChatMessage.user("Run all tests now. Execute each test by calling tools. Report results."));
+            streamer.startStreaming();
+            messageList.resetAutoScroll();
+            autoSave();
+            chatService.sendMessage("Run all tests now", testHistory, streamer);
+            return;
+        }
 
         // Handle debug commands locally (when debug mode is active)
         if (handleDebugCommand(text)) {
