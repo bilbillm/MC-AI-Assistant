@@ -455,12 +455,12 @@ public class AIChatScreen extends Screen {
             // Store planning prompt for API injection — do NOT add to ConversationThread
             // to prevent the raw system prompt from appearing in the chat UI
             pendingPlanningPrompt = 
-                "The player wants to accomplish: \"" + cleanGoal + "\". " +
-                "Break this down into a structured JSON task chain with 3-8 steps. " +
-                "Return ONLY valid JSON in this format: " +
-                "{\"tasks\": [{\"description\": \"...\", " +
-                "\"type\": \"CRAFT|GATHER|GO_TO|USE|KILL|PLAN\", " +
-                "\"items\": [{\"itemId\": \"minecraft:xxx\", \"count\": N}]}]}";
+                "The player wants to accomplish: \"" + cleanGoal + "\". "
+                + "Use the 'manage_project' tool with action='create_project' to create a project "
+                + "breaking this down into 3-8 steps. Each step should have: "
+                + "description (what to do), type (CRAFT|GATHER|GO_TO|USE|KILL|PLAN), "
+                + "and items array with itemId and count where applicable. "
+                + "IMPORTANT: call the tool, do NOT output JSON as text.";
         }
     }
 

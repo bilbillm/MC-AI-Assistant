@@ -17,8 +17,9 @@ import java.util.List;
 /**
  * Tool that gives the AI full CRUD control over the project system.
  * <p>
- * Supports four actions via the required "action" parameter:
+ * Supports five actions via the required "action" parameter:
  * <ul>
+ *   <li>{@code create_project} — create a new project with tasks (requires {@code project_name}, {@code tasks})</li>
  *   <li>{@code get_status} — view active project progress and task list</li>
  *   <li>{@code mark_done} — mark a task as complete (requires {@code task_index})</li>
  *   <li>{@code mark_blocked} — mark a task as blocked (requires {@code task_index})</li>
@@ -52,15 +53,31 @@ public class ProjectTool implements GameTool {
         JsonObject action = new JsonObject();
         action.addProperty("type", "string");
         action.addProperty("description",
-                "Action: 'get_status' to see project progress, 'mark_done' to mark a task as complete, "
-                        + "'mark_blocked' to mark a task as blocked, 'cancel' to archive the project");
+                "Action: 'create_project' to create a project with tasks, 'get_status' to see progress, "
+                        + "'mark_done' to complete a task, 'mark_blocked' to block a task, "
+                        + "'cancel' to archive the project");
         JsonArray enumValues = new JsonArray();
+        enumValues.add("create_project");
         enumValues.add("get_status");
         enumValues.add("mark_done");
         enumValues.add("mark_blocked");
         enumValues.add("cancel");
         action.add("enum", enumValues);
         properties.add("action", action);
+
+        // project_name: for create_project
+        JsonObject projectName = new JsonObject();
+        projectName.addProperty("type", "string");
+        projectName.addProperty("description",
+                "Project name. Required for 'create_project'");
+        properties.add("project_name", projectName);
+
+        // tasks: JSON array of {description, type, items:[{itemId, count}]} for create_project
+        JsonObject tasksParam = new JsonObject();
+        tasksParam.addProperty("type", "array");
+        tasksParam.addProperty("description",
+                "Task list as JSON array. Each task: {description: string, type: CRAFT|GATHER|GO_TO|USE|KILL|PLAN, items: [{itemId: string, count: int}]}. Required for 'create_project'");
+        properties.add("tasks", tasksParam);
 
         // task_index: which task (1-based, for mark_done/mark_blocked)
         JsonObject taskIndex = new JsonObject();
@@ -90,6 +107,7 @@ public class ProjectTool implements GameTool {
             }
 
             return switch (action) {
+                case "create_project" -> createProject(pm, args);
                 case "get_status" -> getStatus(pm);
                 case "mark_done" -> markDone(pm, args);
                 case "mark_blocked" -> markBlocked(pm, args);
@@ -101,7 +119,45 @@ public class ProjectTool implements GameTool {
         }
     }
 
-    // ==================== Action Implementations ====================
+    private ToolResult createProject(ProjectManager pm, JsonObject args) {
+        String name = args.has("project_name") ? args.get("project_name").getAsString() : "Project";
+        JsonArray tasksJson = args.getAsJsonArray("tasks");
+        if (tasksJson == null || tasksJson.isEmpty()) {
+            return new ToolResult(NAME, "No tasks provided");
+        }
+
+        List<Task> tasks = new ArrayList<>();
+        for (int i = 0; i < tasksJson.size(); i++) {
+            JsonObject t = tasksJson.get(i).getAsJsonObject();
+            String desc = t.get("description").getAsString();
+            String typeStr = t.has("type") ? t.get("type").getAsString() : "PLAN";
+            TaskType type;
+            try { type = TaskType.valueOf(typeStr.toUpperCase()); }
+            catch (IllegalArgumentException e) { type = TaskType.PLAN; }
+
+            List<ItemRequirement> items = new ArrayList<>();
+            if (t.has("items") && !t.get("items").isJsonNull()) {
+                JsonArray itemsJson = t.getAsJsonArray("items");
+                for (int j = 0; j < itemsJson.size(); j++) {
+                    JsonObject item = itemsJson.get(j).getAsJsonObject();
+                    String itemId = item.get("itemId").getAsString();
+                    int count = item.has("count") ? item.get("count").getAsInt() : 1;
+                    items.add(new ItemRequirement(itemId, count, 0));
+                }
+            }
+            tasks.add(new Task(null, desc, type, TaskStatus.PENDING, items, null));
+        }
+
+        Project project = new Project(name);
+        project.setTasks(tasks);
+        pm.saveProject(project);
+
+        return new ToolResult(NAME,
+                "Project '" + name + "' created with " + tasks.size() + " steps. "
+                + "First step: " + tasks.get(0).description());
+    }
+
+    // ==================== Existing Action Implementations ====================
 
     private ToolResult getStatus(ProjectManager pm) {
         Project p = pm.getActiveProject();
