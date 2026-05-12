@@ -1,112 +1,23 @@
 {
-  "active_plan": "C:\\Users\\lumoren\\Documents\\GitHub\\Agent-chat-in-MC\\.sisyphus\\plans\\mc-ai-chat.md",
-  "started_at": "2026-05-08T16:56:48.296Z",
+  "active_plan": "C:\\Users\\lumoren\\Documents\\GitHub\\Agent-chat-in-MC\\.sisyphus\\plans\\project-system-m1.md",
+  "started_at": "2026-05-12T03:00:42.120Z",
   "session_ids": [
-    "ses_1f77acb01ffeR8atIcE7bsy4sW",
-    "ses_1f76d4867ffebTR6q9T9U86gvr",
-    "ses_1f7573bcaffeya7Lm5cfRtR3nN",
-    "ses_1f7560194ffemTnFKVJkoW5cIg",
-    "ses_1f7553c36ffewI9Y19xU2psCoy",
-    "ses_1f4bd0aa6ffe6MvHqxUMH8PjNT",
-    "ses_1f4b7ad6bffe3of6qxQpYJ954N",
-    "ses_1f4ab7331ffefYqfSAYyKYBohO",
-    "ses_1f4953aafffeeAq5fl7ZLvhzUW",
-    "ses_1f47b401effeGHyYDnSX0QDRzI",
-    "ses_1f47b0deaffebuaBbRmJ5hGdbi",
-    "ses_1f47ac536ffekanS6GmaqvFjIy",
-    "ses_1f47a800cffes3x3PL53xB85YP",
-    "ses_1f4552bccffeET5sw05HK4qnfj"
+    "ses_1e897bd98ffe9V8ulWzwO2wrng"
   ],
   "session_origins": {
-    "ses_1f77acb01ffeR8atIcE7bsy4sW": "direct",
-    "ses_1f76d4867ffebTR6q9T9U86gvr": "direct",
-    "ses_1f7573bcaffeya7Lm5cfRtR3nN": "appended",
-    "ses_1f7560194ffemTnFKVJkoW5cIg": "appended",
-    "ses_1f7553c36ffewI9Y19xU2psCoy": "appended",
-    "ses_1f4bd0aa6ffe6MvHqxUMH8PjNT": "appended",
-    "ses_1f4b7ad6bffe3of6qxQpYJ954N": "appended",
-    "ses_1f4ab7331ffefYqfSAYyKYBohO": "appended",
-    "ses_1f4953aafffeeAq5fl7ZLvhzUW": "appended",
-    "ses_1f47b401effeGHyYDnSX0QDRzI": "appended",
-    "ses_1f47b0deaffebuaBbRmJ5hGdbi": "appended",
-    "ses_1f47ac536ffekanS6GmaqvFjIy": "appended",
-    "ses_1f47a800cffes3x3PL53xB85YP": "appended",
-    "ses_1f4552bccffeET5sw05HK4qnfj": "appended"
+    "ses_1e897bd98ffe9V8ulWzwO2wrng": "direct"
   },
-  "plan_name": "mc-ai-chat",
+  "plan_name": "project-system-m1",
   "agent": "atlas",
   "task_sessions": {
-    "todo:0": {
-      "task_key": "todo:0",
-      "task_label": "0",
-      "task_title": "GitHub 仓库初始化 + README + LICENSE",
-      "session_id": "ses_1f768ec0bffeJmaW69LHce7Uob",
+    "todo:12": {
+      "task_key": "todo:12",
+      "task_label": "12",
+      "task_title": "JEI API 集成 — RecipeTool 重构",
+      "session_id": "ses_1e5dda6ccffek11mqMEWv3PUrO",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "updated_at": "2026-05-08T17:22:38.813Z"
-    },
-    "todo:1": {
-      "task_key": "todo:1",
-      "task_label": "1",
-      "task_title": "Gradle 项目搭建 + NeoForge MDK",
-      "session_id": "ses_1f7553c36ffewI9Y19xU2psCoy",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-05-08T17:37:49.636Z"
-    },
-    "todo:7": {
-      "task_key": "todo:7",
-      "task_label": "7",
-      "task_title": "游戏数据访问层（客户端侧）",
-      "session_id": "ses_1f4dcc74affe27q4U2reOcVR2p",
-      "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-05-09T05:41:08.861Z"
-    },
-    "todo:10": {
-      "task_key": "todo:10",
-      "task_label": "10",
-      "task_title": "InventoryTool 背包查询工具",
-      "session_id": "ses_1f4bd0aa6ffe6MvHqxUMH8PjNT",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-05-09T05:46:58.834Z"
-    },
-    "todo:15": {
-      "task_key": "todo:15",
-      "task_label": "15",
-      "task_title": "Function Calling 调度器",
-      "session_id": "ses_1f4b7ad6bffe3of6qxQpYJ954N",
-      "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-05-09T06:00:43.778Z"
-    },
-    "todo:16": {
-      "task_key": "todo:16",
-      "task_label": "16",
-      "task_title": "AI 聊天 UI 组件（消息气泡 + 可滚动列表）",
-      "session_id": "ses_1f4ab7331ffefYqfSAYyKYBohO",
-      "agent": "Sisyphus-Junior",
-      "category": "visual-engineering",
-      "updated_at": "2026-05-09T06:24:35.854Z"
-    },
-    "todo:22": {
-      "task_key": "todo:22",
-      "task_label": "22",
-      "task_title": "聊天历史持久化（存档隔离）",
-      "session_id": "ses_1f4953aafffeeAq5fl7ZLvhzUW",
-      "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-05-09T06:53:40.675Z"
-    },
-    "final-wave:f1": {
-      "task_key": "final-wave:f1",
-      "task_label": "F1",
-      "task_title": "**Plan Compliance Audit** — `oracle`",
-      "session_id": "ses_1f4552bccffeET5sw05HK4qnfj",
-      "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-05-09T07:41:55.726Z"
+      "updated_at": "2026-05-12T03:06:49.233Z"
     }
   }
 }

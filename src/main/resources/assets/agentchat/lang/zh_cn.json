@@ -40,5 +40,15 @@
   "agentchat.key.open_chat": "打开 AI 聊天",
   "agentchat.status.connected": "已连接到 API",
   "agentchat.status.disconnected": "未连接",
-  "agentchat.status.sending": "正在发送..."
+  "agentchat.status.sending": "正在发送...",
+  "agentchat.project.hud.progress": "%s（%d/%d）",
+  "agentchat.project.hud.no_project": "暂无活跃项目",
+  "agentchat.project.complete": "🎉 项目「%s」已完成！",
+  "agentchat.project.create.confirm": "是否创建此项目？",
+  "agentchat.project.create.failed": "项目创建失败，请重试",
+  "agentchat.project.task.added": "已添加步骤：%s",
+  "agentchat.project.task.removed": "已删除步骤：%s",
+  "agentchat.project.archived": "项目「%s」已归档",
+  "agentchat.project.reactivated": "项目「%s」已恢复",
+  "agentchat.project.task.blocked": "⚠ 步骤「%s」已阻塞——你丢失了所需物品"
 }

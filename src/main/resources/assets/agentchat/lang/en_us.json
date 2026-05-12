@@ -40,5 +40,15 @@
   "agentchat.key.open_chat": "Open AI Chat",
   "agentchat.status.connected": "Connected to API",
   "agentchat.status.disconnected": "Disconnected",
-  "agentchat.status.sending": "Sending..."
+  "agentchat.status.sending": "Sending...",
+  "agentchat.project.hud.progress": "%s (%d/%d)",
+  "agentchat.project.hud.no_project": "No active project",
+  "agentchat.project.complete": "🎉 Project \"%s\" completed!",
+  "agentchat.project.create.confirm": "Create project with this task list?",
+  "agentchat.project.create.failed": "Failed to create project. Please try again.",
+  "agentchat.project.task.added": "Task added: %s",
+  "agentchat.project.task.removed": "Task removed: %s",
+  "agentchat.project.archived": "Project \"%s\" archived",
+  "agentchat.project.reactivated": "Project \"%s\" reactivated",
+  "agentchat.project.task.blocked": "⚠ Task \"%s\" is blocked — you lost required items"
 }

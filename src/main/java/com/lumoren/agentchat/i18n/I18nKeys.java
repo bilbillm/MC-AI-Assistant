@@ -115,4 +115,26 @@ public final class I18nKeys {
     public static final String STATUS_DISCONNECTED = "agentchat.status.disconnected";
     /** 正在发送 */
     public static final String STATUS_SENDING = "agentchat.status.sending";
+
+    // ==================== PROJECT SYSTEM ====================
+    /** HUD 项目进度（含参数：名称, 已完成, 总数） */
+    public static final String PROJECT_HUD_PROGRESS = "agentchat.project.hud.progress";
+    /** HUD 无活跃项目 */
+    public static final String PROJECT_HUD_NO_PROJECT = "agentchat.project.hud.no_project";
+    /** 项目完成（含参数：项目名称） */
+    public static final String PROJECT_COMPLETE = "agentchat.project.complete";
+    /** 创建项目确认 */
+    public static final String PROJECT_CREATE_CONFIRM = "agentchat.project.create.confirm";
+    /** 项目创建失败 */
+    public static final String PROJECT_CREATE_FAILED = "agentchat.project.create.failed";
+    /** 步骤已添加（含参数：步骤名称） */
+    public static final String PROJECT_TASK_ADDED = "agentchat.project.task.added";
+    /** 步骤已删除（含参数：步骤名称） */
+    public static final String PROJECT_TASK_REMOVED = "agentchat.project.task.removed";
+    /** 项目已归档（含参数：项目名称） */
+    public static final String PROJECT_ARCHIVED = "agentchat.project.archived";
+    /** 项目已恢复（含参数：项目名称） */
+    public static final String PROJECT_REACTIVATED = "agentchat.project.reactivated";
+    /** 步骤已阻塞（含参数：步骤名称） */
+    public static final String PROJET_TASK_BLOCKED = "agentchat.project.task.blocked";
 }

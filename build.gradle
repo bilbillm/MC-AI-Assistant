@@ -67,6 +67,11 @@ tasks.named('test', Test) {
         // Exclude tests that require Minecraft runtime (GUI, FML config, static registries)
         excludeTags 'requires-minecraft'
     }
+    // Required for Gson reflective access to java.time and private fields (Java 21 module system)
+    jvmArgs += [
+        '--add-opens', 'java.base/java.time=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.lang=ALL-UNNAMED'
+    ]
     maxParallelForks = 1
     // Exclude test classes that need Minecraft runtime
     filter {
