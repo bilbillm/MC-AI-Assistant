@@ -129,7 +129,36 @@ public class ProjectTool implements GameTool {
     }
 
     private ToolResult markDone(ProjectManager pm, JsonObject args) {
-        return updateTaskStatus(pm, args, TaskStatus.DONE, "done");
+        Project p = pm.getActiveProject();
+        if (p == null) {
+            return new ToolResult(NAME, "No active project");
+        }
+        int index = args.get("task_index").getAsInt() - 1;
+        List<Task> tasks = new ArrayList<>(p.getTasks());
+        if (index < 0 || index >= tasks.size()) {
+            return new ToolResult(NAME, "Invalid task index: " + (index + 1));
+        }
+
+        int cascadeCount = 0;
+
+        // Cascade: mark ALL previous PENDING tasks as done too
+        // (player clearly has the end product, dependencies were satisfied)
+        for (int i = 0; i <= index; i++) {
+            Task t = tasks.get(i);
+            if (t.status() == TaskStatus.PENDING || t.status() == TaskStatus.IN_PROGRESS) {
+                Task updated = new Task(t.id(), t.description(), t.type(),
+                        TaskStatus.DONE, t.requiredItems(), t.note());
+                tasks.set(i, updated);
+                cascadeCount++;
+            }
+            // Do NOT touch BLOCKED tasks — those were explicitly blocked
+        }
+
+        p.setTasks(tasks);
+        pm.saveProject(p);
+        return new ToolResult(NAME,
+                "Tasks 1-" + (index + 1) + " marked done (" + cascadeCount + " completed). "
+                + "Next: " + (index + 2 > tasks.size() ? "all done!" : tasks.get(index + 1).description()));
     }
 
     private ToolResult markBlocked(ProjectManager pm, JsonObject args) {
