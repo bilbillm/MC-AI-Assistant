@@ -108,9 +108,9 @@
 
 ```
 Wave 1 (Start Immediately — data foundation):
-├── Task 1: Project/Task/ItemRequirement 数据模型 [quick]
-├── Task 2: ProjectManager 持久化层 (TDD) [unspecified-high]
-├── Task 3: Project 系统 I18n keys + 翻译文件 [quick]
+├── [x] Task 1: Project/Task/ItemRequirement 数据模型 [quick]
+├── [ ] Task 2: ProjectManager 持久化层 (TDD) [unspecified-high]
+├── [x] Task 3: Project 系统 I18n keys + 翻译文件 [quick]
 
 Wave 2 (After Wave 1 — AI + detection + JEI):
 ├── Task 4: ProjectPlanningService AI 提示词 + 响应解析 [unspecified-high]
