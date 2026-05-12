@@ -36,8 +36,8 @@ public class ChatMessageWidget {
     private final boolean selected; // right-click selected for context actions
     private final List<String> linkUrls = new ArrayList<>();
 
-    /** Records the y-range and URL of a clickable link within this message. */
-    public record LinkRegion(int y1, int y2, String url) {}
+    /** Records the bounding box (screen-absolute) and URL of a clickable link within this message. */
+    public record LinkRegion(int x1, int y1, int x2, int y2, String url) {}
     private final List<LinkRegion> linkRegions = new ArrayList<>();
 
     // Bounding box for click detection of reasoning toggle — set during render
@@ -278,12 +278,197 @@ public class ChatMessageWidget {
                 contentY += reasoningHeight + 4;
             }
         }
-        // Main response text
-        graphics.drawWordWrap(font, renderedContent, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_SECONDARY);
+        // Main response text — manual word-wrap to track link positions
+        renderManualWordWrap(graphics, font, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_SECONDARY);
+    }
 
-        // Compute link hit regions for click targeting
-        if (!linkUrls.isEmpty()) {
-            computeLinkRegions(font, innerWidth, PADDING, contentY);
+    // ==================== Manual word-wrap rendering with link tracking ====================
+
+    /**
+     * Renders text with manual word wrapping, detecting and highlighting links.
+     * Also populates {@link #linkRegions} for click targeting.
+     */
+    private void renderManualWordWrap(GuiGraphics graphics, Font font, int x, int y, int maxWidth, int color) {
+        linkRegions.clear();
+        doManualWordWrap(graphics, font, x, y, maxWidth, color);
+    }
+
+    /**
+     * Computes link regions for this widget at a given screen position, without rendering.
+     * Called during hit-testing so that link regions are available for click detection.
+     */
+    public void computeLinkPositions(int widgetX, int widgetY, Font font, int listWidth) {
+        if (!"assistant".equals(message.role()) || linkUrls.isEmpty()) return;
+
+        int bubbleMaxWidth = listWidth - AVATAR_SIZE - AVATAR_GAP - PADDING;
+        if (bubbleMaxWidth <= 20) bubbleMaxWidth = 20;
+        int innerWidth = bubbleMaxWidth - PADDING * 2;
+        if (innerWidth <= 10) innerWidth = 10;
+
+        int bubbleX = widgetX + AVATAR_SIZE + AVATAR_GAP;
+        int contentY = widgetY + PADDING;
+
+        // Adjust for reasoning section (same offsets as renderAIBubble)
+        if (hasReasoning()) {
+            contentY += REASONING_HEADER_HEIGHT + 2;
+            if (isReasoningExpanded()) {
+                contentY += 4; // separator area
+                int reasoningHeight = font.wordWrapHeight(renderedReasoning, innerWidth);
+                contentY += reasoningHeight + 4; // reasoning text + bottom gap
+            }
+        }
+
+        linkRegions.clear();
+        doManualWordWrap(null, font, bubbleX + PADDING, contentY, innerWidth, 0);
+    }
+
+    /**
+     * Core word-wrapping logic. Populates {@link #linkRegions} and optionally renders.
+     * @param graphics nullable — if null, only link positions are computed (no drawing)
+     */
+    private void doManualWordWrap(GuiGraphics graphics,
+            Font font, int x, int y, int maxWidth, int color) {
+
+        String plainText = renderedContent.getString();
+        String raw = message.content();
+
+        // Build link table from raw markdown: [text](url) and plain URLs
+        java.util.List<int[]> links = new java.util.ArrayList<>(); // [start, end, urlIndex]
+        java.util.List<String> urls = new java.util.ArrayList<>();
+
+        // Markdown [text](url) links
+        Matcher m = Pattern.compile("\\[([^\\]]+)\\]\\(([^\\)]+)\\)").matcher(raw);
+        while (m.find()) {
+            String linkText = m.group(1);
+            String url = m.group(2);
+            int pos = plainText.indexOf(linkText);
+            if (pos >= 0) {
+                // Avoid duplicating if the same text appears at the same position
+                boolean dup = false;
+                for (int[] existing : links) {
+                    if (existing[0] == pos) { dup = true; break; }
+                }
+                if (!dup) {
+                    links.add(new int[]{pos, pos + linkText.length(), urls.size()});
+                    urls.add(url);
+                }
+            }
+        }
+
+        // Plain http(s):// URLs
+        Matcher urlMatcher = Pattern.compile("https?://[^\\s<>\"']+").matcher(raw);
+        while (urlMatcher.find()) {
+            String url = urlMatcher.group();
+            int pos = plainText.indexOf(url);
+            if (pos >= 0) {
+                boolean covered = false;
+                for (int[] link : links) {
+                    if (pos >= link[0] && pos < link[1]) { covered = true; break; }
+                }
+                if (!covered) {
+                    links.add(new int[]{pos, pos + url.length(), urls.size()});
+                    urls.add(url);
+                }
+            }
+        }
+
+        // Manual word wrapping — split on whitespace boundaries, preserving delimiters
+        String[] words = plainText.split("(?<=\\s)|(?=\\s)");
+        int lineWidth = 0;
+        int currentY = y;
+        int charIndex = 0;
+        StringBuilder currentLine = new StringBuilder();
+
+        for (String word : words) {
+            // Handle explicit newline characters
+            if (word.equals("\n")) {
+                if (currentLine.length() > 0) {
+                    int lineStartChar = charIndex - currentLine.length();
+                    processLine(graphics, font, currentLine.toString(), x, currentY,
+                            lineStartChar, color, links, urls);
+                }
+                currentLine.setLength(0);
+                lineWidth = 0;
+                currentY += font.lineHeight;
+                charIndex++; // skip the newline
+                continue;
+            }
+
+            int wordWidth = font.width(word);
+            if (lineWidth + wordWidth > maxWidth && lineWidth > 0) {
+                // Line would overflow — render current line and start new
+                if (currentLine.length() > 0) {
+                    int lineStartChar = charIndex - currentLine.length();
+                    processLine(graphics, font, currentLine.toString(), x, currentY,
+                            lineStartChar, color, links, urls);
+                }
+                currentLine.setLength(0);
+                lineWidth = 0;
+                currentY += font.lineHeight;
+            }
+            currentLine.append(word);
+            lineWidth += wordWidth;
+            charIndex += word.length();
+        }
+
+        // Render final line
+        if (currentLine.length() > 0) {
+            int lineStartChar = charIndex - currentLine.length();
+            processLine(graphics, font, currentLine.toString(), x, currentY,
+                    lineStartChar, color, links, urls);
+        }
+    }
+
+    /**
+     * Renders a single line, splitting on link boundaries for color highlighting.
+     * Links are drawn with {@link ChatColors#TASK_ACTIVE} and their regions recorded.
+     */
+    private void processLine(GuiGraphics graphics,
+            Font font, String line, int x, int y, int lineStartChar, int color,
+            java.util.List<int[]> links, java.util.List<String> urls) {
+
+        int lineLen = line.length();
+        int charPos = 0;
+        int pixelPos = x;
+
+        while (charPos < lineLen) {
+            int globalPos = lineStartChar + charPos;
+            int[] foundLink = null;
+            for (int[] link : links) {
+                if (globalPos >= link[0] && globalPos < link[1]) {
+                    foundLink = link;
+                    break;
+                }
+            }
+
+            if (foundLink != null) {
+                int linkEndInLine = foundLink[1] - lineStartChar;
+                if (linkEndInLine > lineLen) linkEndInLine = lineLen;
+                String linkFragment = line.substring(charPos, linkEndInLine);
+                int linkW = font.width(linkFragment);
+                linkRegions.add(new LinkRegion(pixelPos, y, pixelPos + linkW,
+                        y + font.lineHeight, urls.get(foundLink[2])));
+                if (graphics != null) {
+                    graphics.drawString(font, linkFragment, pixelPos, y, ChatColors.TASK_ACTIVE);
+                }
+                pixelPos += linkW;
+                charPos = linkEndInLine;
+            } else {
+                // Find next link start or end of line
+                int nextLink = lineLen;
+                for (int[] link : links) {
+                    int linkStart = link[0] - lineStartChar;
+                    if (linkStart > charPos && linkStart < nextLink) {
+                        nextLink = linkStart;
+                    }
+                }
+                String plain = line.substring(charPos, nextLink);
+                if (graphics != null) {
+                    graphics.drawString(font, plain, pixelPos, y, color);
+                }
+                pixelPos += font.width(plain);
+                charPos = nextLink;
+            }
         }
     }
 
@@ -311,30 +496,5 @@ public class ChatMessageWidget {
         graphics.fill(x + width - r, y, x + width, y + r, color);
         graphics.fill(x, y + height - r, x + r, y + height, color);
         graphics.fill(x + width - r, y + height - r, x + width, y + height, color);
-    }
-
-    private void computeLinkRegions(Font font, int maxWidth, int padding, int contentY) {
-        linkRegions.clear();
-        var lines = font.split(renderedContent, maxWidth);
-        // Store y relative to widget top (contentY is screen-absolute, convert to widget-relative)
-        int y = contentY;
-        for (var line : lines) {
-            final int lineY = y;
-            line.accept((index, style, codePoint) -> {
-                if (style != null && style.getClickEvent() != null) {
-                    String url = style.getClickEvent().getValue();
-                    // Dedup: one entry per URL per line
-                    boolean exists = false;
-                    for (LinkRegion r : linkRegions) {
-                        if (r.url().equals(url) && r.y1() == lineY) { exists = true; break; }
-                    }
-                    if (!exists) {
-                        linkRegions.add(new LinkRegion(lineY, lineY + font.lineHeight, url));
-                    }
-                }
-                return true;
-            });
-            y += font.lineHeight;
-        }
     }
 }

@@ -203,17 +203,15 @@ public class MessageListWidget extends AbstractWidget {
                     }
                     // Check if click falls on a specific link region
                     if (widget.hasLinks()) {
-                        // Link regions use screen-absolute Y (same as content rendering)
-                        int clickY = (int) mouseY;
+                        widget.computeLinkPositions(listX, currentY, font, listWidth);
                         for (ChatMessageWidget.LinkRegion r : widget.getLinkRegions()) {
-                            if (clickY >= r.y1() && clickY <= r.y2()) {
+                            if (mouseX >= r.x1() && mouseX <= r.x2()
+                                    && mouseY >= r.y1() && mouseY <= r.y2()) {
                                 openUrl(r.url());
                                 return true;
                             }
                         }
-                        // Fallback: no specific region matched
-                        openUrl(widget.getLinkUrls().get(widget.getLinkUrls().size() - 1));
-                        return true;
+                        // Fallback: no specific region matched — don't open anything
                     }
                     selectedMessageUuid = null;
                     return false;
@@ -242,16 +240,15 @@ public class MessageListWidget extends AbstractWidget {
                     return true;
                 }
                 if (sw.hasLinks()) {
-                    int clickY = (int) mouseY;
+                    sw.computeLinkPositions(listX, currentY, font, listWidth);
                     for (ChatMessageWidget.LinkRegion r : sw.getLinkRegions()) {
-                        if (clickY >= r.y1() && clickY <= r.y2()) {
+                        if (mouseX >= r.x1() && mouseX <= r.x2()
+                                && mouseY >= r.y1() && mouseY <= r.y2()) {
                             openUrl(r.url());
                             return true;
                         }
                     }
-                    // If no specific link region matched, fall back to the last link
-                    openUrl(sw.getLinkUrls().get(sw.getLinkUrls().size() - 1));
-                    return true;
+                    // Fallback: no specific region matched — don't open anything
                 }
             }
         }
