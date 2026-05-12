@@ -29,6 +29,9 @@ public class ChatMessageWidget {
     private static final int GAP = 6;
     private static final int REASONING_HEADER_HEIGHT = 14;
 
+    private static final Pattern MARKDOWN_LINK_PATTERN = Pattern.compile("\\[([^\\]]+)\\]\\(([^\\)]+)\\)");
+    private static final Pattern PLAIN_URL_PATTERN = Pattern.compile("https?://[^\\s<>\"']+");
+
     private final ChatMessage message;
     private final Component renderedContent;
     private final Component renderedReasoning;
@@ -61,14 +64,12 @@ public class ChatMessageWidget {
         // Extract links from raw markdown for click handling
         if (!isError() && !isTool() && !isSystem()) {
             // Plain http(s):// URLs
-            Matcher urlMatcher = Pattern.compile("https?://[^\\s<>\"']+")
-                    .matcher(message.content());
+            Matcher urlMatcher = PLAIN_URL_PATTERN.matcher(message.content());
             while (urlMatcher.find()) {
                 linkUrls.add(urlMatcher.group());
             }
             // Markdown [text](url) links
-            Matcher m = Pattern.compile("\\[([^\\]]+)\\]\\(([^\\)]+)\\)")
-                    .matcher(message.content());
+            Matcher m = MARKDOWN_LINK_PATTERN.matcher(message.content());
             while (m.find()) {
                 linkUrls.add(m.group(2));
             }
@@ -337,29 +338,25 @@ public class ChatMessageWidget {
         java.util.List<String> urls = new java.util.ArrayList<>();
 
         // Markdown [text](url) links
-        Matcher m = Pattern.compile("\\[([^\\]]+)\\]\\(([^\\)]+)\\)").matcher(raw);
+        int searchOffset = 0;
+        Matcher m = MARKDOWN_LINK_PATTERN.matcher(raw);
         while (m.find()) {
             String linkText = m.group(1);
             String url = m.group(2);
-            int pos = plainText.indexOf(linkText);
+            int pos = plainText.indexOf(linkText, searchOffset);
             if (pos >= 0) {
-                // Avoid duplicating if the same text appears at the same position
-                boolean dup = false;
-                for (int[] existing : links) {
-                    if (existing[0] == pos) { dup = true; break; }
-                }
-                if (!dup) {
-                    links.add(new int[]{pos, pos + linkText.length(), urls.size()});
-                    urls.add(url);
-                }
+                links.add(new int[]{pos, pos + linkText.length(), urls.size()});
+                urls.add(url);
+                searchOffset = pos + linkText.length();
             }
         }
 
         // Plain http(s):// URLs
-        Matcher urlMatcher = Pattern.compile("https?://[^\\s<>\"']+").matcher(raw);
+        int urlSearchOffset = 0;
+        Matcher urlMatcher = PLAIN_URL_PATTERN.matcher(raw);
         while (urlMatcher.find()) {
             String url = urlMatcher.group();
-            int pos = plainText.indexOf(url);
+            int pos = plainText.indexOf(url, urlSearchOffset);
             if (pos >= 0) {
                 boolean covered = false;
                 for (int[] link : links) {
@@ -369,6 +366,7 @@ public class ChatMessageWidget {
                     links.add(new int[]{pos, pos + url.length(), urls.size()});
                     urls.add(url);
                 }
+                urlSearchOffset = pos + url.length();
             }
         }
 

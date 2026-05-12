@@ -195,7 +195,7 @@ public class WebSearchTool implements GameTool {
             String visible = stripHtml(html).trim();
             if (visible.length() > 50) {
                 results.add(new SearchResult("Search results (text only)", "", 
-                    visible.substring(0, 300) + "..."));
+                    visible.substring(0, Math.min(300, visible.length())) + "..."));
             }
         }
 
