@@ -112,7 +112,25 @@ public class AIChatService {
 
     private void runConversationLoop(List<ChatMessage> conversation, ChatCallback callback, int round) {
         if (round >= MAX_ROUNDS) {
-            callback.onError("Error: Maximum conversation rounds exceeded.");
+            // Forced output: inject system instruction to stop using tools and summarize
+            conversation.add(ChatMessage.system(
+                "Tool call limit reached. Based on all the information gathered so far, "
+                + "provide your best answer NOW without calling any more tools."
+            ));
+            // Do a final non-streaming completion to get the summary text
+            client.chatCompletion(conversation, null)
+                .thenAccept(summary -> {
+                    if (cancelled) return;
+                    callback.onThinking("Summarizing...");
+                    callback.onToken("(Tool call limit reached — showing best available answer)\n\n");
+                    callback.onToken(summary);
+                    callback.onComplete(summary);
+                })
+                .exceptionally(throwable -> {
+                    Throwable cause = unwrap(throwable);
+                    callback.onError(cause.getMessage());
+                    return null;
+                });
             return;
         }
 
