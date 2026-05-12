@@ -39,9 +39,22 @@ public class ClientEventHandler {
             if (pm != null && pm.getActiveProject() != null) {
                 if (tracker == null) {
                     tracker = new ProjectProgressTracker();
-                    // Wire auto-completion: save project after tasks are marked done
+                    // Wire auto-completion: save project + auto-archive when all done
                     final ProjectManager fPm = pm;
-                    tracker.setOnProgressChanged(() -> fPm.saveProject(fPm.getActiveProject()));
+                    tracker.setOnProgressChanged(() -> {
+                        fPm.saveProject(fPm.getActiveProject());
+                        // Auto-archive if all tasks are done
+                        Project active = fPm.getActiveProject();
+                        if (active != null && active.getTasks().stream().allMatch(
+                                t -> t.status() == com.lumoren.agentchat.model.TaskStatus.DONE)) {
+                            Minecraft.getInstance().execute(() -> {
+                                if (Minecraft.getInstance().screen instanceof AIChatScreen screen) {
+                                    screen.onProjectCompleted(active.getName());
+                                }
+                            });
+                            fPm.archiveCurrentProject();
+                        }
+                    });
                 }
                 // Pass interval=1 — ClientEventHandler already gates by tick counter
                 tracker.onClientTick(pm.getActiveProject(), Minecraft.getInstance(), 1);

@@ -465,6 +465,17 @@ public class AIChatScreen extends Screen {
     }
 
     /**
+     * Called externally (from ClientEventHandler tick) when all tasks are auto-completed.
+     */
+    public void onProjectCompleted(String projectName) {
+        String msg = I18nHelper.translateToString(I18nKeys.PROJECT_COMPLETE, projectName);
+        thread.addMessage(ChatMessage.system(msg));
+        if (messageList != null) {
+            messageList.onMessageAdded();
+        }
+    }
+
+    /**
      * Check if the active project has all tasks DONE.
      * If so, archives the project and sends a celebration message.
      */
@@ -482,11 +493,7 @@ public class AIChatScreen extends Screen {
             projectJustCompleted = true;
             String projectName = project.getName();
             pm.archiveCurrentProject();
-            String msg = I18nHelper.translateToString(I18nKeys.PROJECT_COMPLETE, projectName);
-            thread.addMessage(ChatMessage.system(msg));
-            if (messageList != null) {
-                messageList.onMessageAdded();
-            }
+            onProjectCompleted(projectName);
         }
     }
 
