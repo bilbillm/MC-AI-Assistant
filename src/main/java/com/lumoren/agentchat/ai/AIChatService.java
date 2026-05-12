@@ -213,8 +213,10 @@ public class AIChatService {
     /** Filter out DeepSeek tool call XML fragments that leak into streaming content. */
     private static boolean isToolCallFragment(String token) {
         if (token == null || token.isEmpty()) return false;
-        String t = token.strip();
-        return t.startsWith("<") && (t.contains("invoke") || t.contains("tool_call")
-            || t.contains("parameter") || t.contains("DSML") || t.contains("▌"));
+        // DeepSeek uses various markers for tool call XML in streaming content
+        return token.contains("▌") || token.contains("<DSML|") || token.contains("|tool_calls>")
+            || token.contains("|invoke") || token.contains("|parameter")
+            || token.contains("</invoke>") || token.contains("</parameter>")
+            || token.contains("</tool_calls>");
     }
 }

@@ -505,11 +505,24 @@ public class AIChatScreen extends Screen {
 
         pendingTasks = tasks;
 
-        // Replace raw JSON assistant message with formatted task list
-        int aiIndex = getLastAiResponseIndex();
-        if (aiIndex >= 0) {
-            thread.removeMessagesFrom(aiIndex);
+        // Auto-create the project directly — no user confirmation needed
+        String projectName = pendingProjectName != null ? pendingProjectName : "Project";
+        Project project = new Project(projectName);
+        project.setTasks(new java.util.ArrayList<>(tasks));
+
+        ProjectManager pm = ProjectManager.getInstance();
+        if (pm != null) {
+            pm.saveProject(project);
+            projectJustCompleted = false;
         }
+
+        thread.addMessage(ChatMessage.system("📋 Project \"" + projectName + "\" created with " + tasks.size() + " steps"));
+        pendingTasks = null;
+        pendingProjectCreation = false;
+        if (messageList != null) {
+            messageList.onMessageAdded();
+        }
+    }
         thread.addMessage(ChatMessage.assistant("Here's your project plan for \"" + pendingProjectName + "\":"));
         for (Task t : tasks) {
             thread.addMessage(ChatMessage.system("☐ " + t.description()));
