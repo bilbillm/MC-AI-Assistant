@@ -9,6 +9,7 @@ import com.lumoren.agentchat.tools.InventoryTool;
 import com.lumoren.agentchat.tools.ItemEncyclopediaTool;
 import com.lumoren.agentchat.tools.ModListTool;
 import com.lumoren.agentchat.tools.PositionTool;
+import com.lumoren.agentchat.tools.ProjectTool;
 import com.lumoren.agentchat.tools.RecipeTool;
 import com.lumoren.agentchat.tools.ToolRegistry;
 import com.lumoren.agentchat.tools.WebSearchTool;
@@ -94,6 +95,7 @@ public final class ClientServiceManager {
         registry.register(new WebSearchTool());
         registry.register(new ModListTool());
         registry.register(new GameInfoTool());
+        registry.register(new ProjectTool());
         return registry;
     }
 }
