@@ -49,6 +49,12 @@ public class AIChatService {
         /** Called when a tool is about to be executed. */
         void onThinking(String status);
 
+        /** Called when AI requests a tool execution (before the tool runs). */
+        default void onToolCall(String name, String arguments) {}
+
+        /** Called when a tool execution completes with results. */
+        default void onToolResult(String result) {}
+
         /** Called when an error occurs. */
         void onError(String error);
 
@@ -116,12 +122,17 @@ public class AIChatService {
 
                     for (ChatMessage.ToolCall tc : response.toolCalls()) {
                         callback.onThinking("querying " + tc.function().name() + "...");
+                        callback.onToolCall(tc.function().name(), tc.function().arguments());
                     }
 
                     List<ChatMessage> toolResults = dispatcher.executeToolCalls(
                         response.toolCalls(), Minecraft.getInstance()
                     );
                     conversation.addAll(toolResults);
+
+                    for (ChatMessage tr : toolResults) {
+                        callback.onToolResult(tr.content());
+                    }
 
                     // Continue the loop with updated history
                     runConversationLoop(conversation, callback, round + 1);

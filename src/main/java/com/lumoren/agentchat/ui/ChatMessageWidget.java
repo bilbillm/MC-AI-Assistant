@@ -42,7 +42,7 @@ public class ChatMessageWidget {
         this.message = message;
         this.expandedReasonings = expandedReasonings != null ? expandedReasonings : new HashSet<>();
         this.selected = selected;
-        this.renderedContent = isError()
+        this.renderedContent = isError() || isTool() || isSystem()
                 ? Component.literal(message.content())
                 : MarkdownRenderer.render(message.content());
         this.renderedReasoning = hasReasoning()
@@ -55,12 +55,26 @@ public class ChatMessageWidget {
             renderError(graphics, x, y, width, font);
         } else if (isUser()) {
             renderUserBubble(graphics, x, y, width, font);
+        } else if (isTool()) {
+            renderToolBlock(graphics, x, y, width, font);
+        } else if (isSystem()) {
+            renderSystemText(graphics, x, y, width, font);
         } else {
             renderAIBubble(graphics, x, y, width, font);
         }
     }
 
     public int getHeight(Font font, int availableWidth) {
+        if (isTool()) {
+            int innerW = availableWidth - PADDING * 2;
+            if (innerW <= 10) innerW = 10;
+            return PADDING / 2 + font.lineHeight + 4 + GAP;
+        }
+        if (isSystem()) {
+            int innerW = availableWidth - PADDING * 2;
+            if (innerW <= 10) innerW = 10;
+            return 2 + font.wordWrapHeight(renderedContent, innerW) + 4;
+        }
         int bubbleMaxWidth = availableWidth - AVATAR_SIZE - AVATAR_GAP - PADDING;
         int innerWidth = bubbleMaxWidth - PADDING * 2;
         if (innerWidth <= 10) innerWidth = 10;
@@ -81,6 +95,8 @@ public class ChatMessageWidget {
 
     public boolean isError() { return "error".equals(message.role()); }
     public boolean isUser() { return "user".equals(message.role()); }
+    public boolean isTool() { return "tool".equals(message.role()); }
+    public boolean isSystem() { return "system".equals(message.role()); }
     public ChatMessage getMessage() { return message; }
     public boolean hasReasoning() {
         return "assistant".equals(message.role())
@@ -121,6 +137,26 @@ public class ChatMessageWidget {
         int innerWidth = width - PADDING * 2;
         if (innerWidth <= 10) innerWidth = 10;
         graphics.drawWordWrap(font, renderedContent, x + PADDING, y + PADDING, innerWidth, ChatColors.TEXT_ERROR);
+    }
+
+    private void renderToolBlock(GuiGraphics graphics, int x, int y, int width, Font font) {
+        int px = x + PADDING;
+        int py = y + PADDING / 2;
+        int maxW = width - PADDING * 2;
+        if (maxW <= 10) maxW = 10;
+
+        // Tool name header with background
+        int textW = Math.min(font.width(renderedContent) + 10, maxW);
+        graphics.fill(px, py, px + textW, py + font.lineHeight + 4, 0x44_1E293B);
+        graphics.drawString(font, renderedContent.getString(), px + 4, py + 2, ChatColors.TEXT_ACCENT);
+    }
+
+    private void renderSystemText(GuiGraphics graphics, int x, int y, int width, Font font) {
+        // Gray text, no bubble
+        int px = x + PADDING;
+        int py = y + 2;
+        int maxW = width - PADDING * 2;
+        graphics.drawWordWrap(font, renderedContent, px, py, maxW, ChatColors.TEXT_DIM);
     }
 
     private void renderUserBubble(GuiGraphics graphics, int x, int y, int width, Font font) {
