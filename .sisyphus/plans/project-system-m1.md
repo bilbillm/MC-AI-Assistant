@@ -114,10 +114,10 @@ Wave 2 (After Wave 1 — AI + detection + JEI):
 ├── [x] Task 12: JEI API 集成 — RecipeTool 重构 [unspecified-high]
 
 Wave 3 (After Wave 2 — UI + integration):
-├── [ ] Task 7: ProjectHudOverlay + ProjectHudWidget (NeoForge overlay) [visual-engineering]
-├── [ ] Task 8: ClientEventHandler — tick hook 注册 [quick]
-├── [ ] Task 9: AIChatService — 系统提示词动态注入 [unspecified-high]
-├── [ ] Task 10: AIChatScreen — 项目创建对话流 + 完成庆祝 [unspecified-high]
+├── [x] Task 7: ProjectHudOverlay + ProjectHudWidget (NeoForge overlay) [visual-engineering]
+├── [x] Task 8: ClientEventHandler — tick hook 注册 [quick]
+├── [x] Task 9: AIChatService — 系统提示词动态注入 [unspecified-high]
+├── [x] Task 10: AIChatScreen — 项目创建对话流 + 完成庆祝 [unspecified-high]
 ├── [x] Task 11: ProjectManager 归档 + 重激活逻辑 (done in Task 2) [quick]
 
 Wave FINAL:
