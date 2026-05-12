@@ -203,12 +203,18 @@ public class MessageListWidget extends AbstractWidget {
                     }
                     // Check if click falls on a specific link region
                     if (widget.hasLinks()) {
-                        int relY = (int) mouseY - currentY;
+                        // Link regions use screen-absolute Y (same as content rendering)
+                        int clickY = (int) mouseY;
                         for (ChatMessageWidget.LinkRegion r : widget.getLinkRegions()) {
-                            if (relY >= r.y1() && relY <= r.y2()) {
+                            if (clickY >= r.y1() && clickY <= r.y2()) {
                                 openUrl(r.url());
                                 return true;
                             }
+                        }
+                        // Fallback: no specific region matched
+                        openUrl(widget.getLinkUrls().get(widget.getLinkUrls().size() - 1));
+                        return true;
+                    }
                         }
                         // If no specific link region matched, fall back to the last link
                         openUrl(widget.getLinkUrls().get(widget.getLinkUrls().size() - 1));
@@ -241,9 +247,9 @@ public class MessageListWidget extends AbstractWidget {
                     return true;
                 }
                 if (sw.hasLinks()) {
-                    int relY = (int) mouseY - currentY;
+                    int clickY = (int) mouseY;
                     for (ChatMessageWidget.LinkRegion r : sw.getLinkRegions()) {
-                        if (relY >= r.y1() && relY <= r.y2()) {
+                        if (clickY >= r.y1() && clickY <= r.y2()) {
                             openUrl(r.url());
                             return true;
                         }

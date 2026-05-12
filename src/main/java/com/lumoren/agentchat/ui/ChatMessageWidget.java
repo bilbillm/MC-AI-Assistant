@@ -316,20 +316,19 @@ public class ChatMessageWidget {
     private void computeLinkRegions(Font font, int maxWidth, int padding, int contentY) {
         linkRegions.clear();
         var lines = font.split(renderedContent, maxWidth);
+        // Store y relative to widget top (contentY is screen-absolute, convert to widget-relative)
         int y = contentY;
         for (var line : lines) {
             final int lineY = y;
             line.accept((index, style, codePoint) -> {
                 if (style != null && style.getClickEvent() != null) {
                     String url = style.getClickEvent().getValue();
-                    boolean found = false;
+                    // Dedup: one entry per URL per line
+                    boolean exists = false;
                     for (LinkRegion r : linkRegions) {
-                        if (r.url().equals(url) && r.y1() == lineY) {
-                            found = true;
-                            break;
-                        }
+                        if (r.url().equals(url) && r.y1() == lineY) { exists = true; break; }
                     }
-                    if (!found) {
+                    if (!exists) {
                         linkRegions.add(new LinkRegion(lineY, lineY + font.lineHeight, url));
                     }
                 }
