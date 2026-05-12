@@ -25,6 +25,8 @@ import net.minecraft.ChatFormatting;
  *   <li>{@code 1. item} — numbered list items</li>
  *   <li>{@code > text} — blockquotes (gray left border)</li>
  *   <li>{@code # text}, {@code ## text}, {@code ### text} — headers (bold, gold)</li>
+ *   <li>{@code | col1 | col2 |} — table rows (aligned with gray separators)</li>
+ *   <li>{@code ---} / {@code ***} / {@code ___} — horizontal rules</li>
  *   <li>Paragraphs separated by double newlines</li>
  * </ul>
  */
@@ -97,15 +99,25 @@ public final class MarkdownRenderer {
                 lineComponent = renderBulletLine(line);
             } else if (trimmed.matches("^\\d+\\.\\s.*")) {
                 lineComponent = renderNumberedLine(line);
+            } else if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+                if (trimmed.contains("---")) {
+                    lineComponent = null;
+                } else {
+                    lineComponent = renderTableRow(line);
+                }
+            } else if (trimmed.matches("^-{3,}$") || trimmed.matches("^\\*{3,}$") || trimmed.matches("^_{3,}$")) {
+                lineComponent = renderHorizontalRule();
             } else {
                 lineComponent = renderInlineFormatting(line);
             }
 
             // Append with paragraph separation
-            if (!result.getSiblings().isEmpty() || result.getString().length() > 0) {
-                result.append(Component.literal("\n"));
+            if (lineComponent != null) {
+                if (!result.getSiblings().isEmpty() || result.getString().length() > 0) {
+                    result.append(Component.literal("\n"));
+                }
+                result.append(lineComponent);
             }
-            result.append(lineComponent);
         }
 
         // Handle unclosed code block at end
@@ -166,6 +178,35 @@ public final class MarkdownRenderer {
                 .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY));
         result.append(renderInlineFormatting(content));
         return result;
+    }
+
+    /**
+     * Render a markdown table row. Cells are split on {@code |} and joined with
+     * gray pipe separators. Blank and dash-only cells are skipped.
+     */
+    private static MutableComponent renderTableRow(String line) {
+        String[] cells = line.split("\\|");
+        MutableComponent row = Component.literal("");
+        for (int i = 0; i < cells.length; i++) {
+            String cell = cells[i].trim();
+            if (cell.isEmpty()) continue;
+            // Skip dash-only cells (separator lines like | --- | --- |)
+            if (cell.matches("^-+$")) continue;
+            if (!row.getSiblings().isEmpty() || row.getString().length() > 0) {
+                row.append(Component.literal(" | ")
+                        .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+            }
+            row.append(Component.literal(cell));
+        }
+        return row;
+    }
+
+    /**
+     * Render a horizontal rule (---, ***, ___).
+     */
+    private static MutableComponent renderHorizontalRule() {
+        return Component.literal("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
+                .withStyle(Style.EMPTY.withColor(ChatFormatting.DARK_GRAY));
     }
 
     /**

@@ -54,8 +54,15 @@ public class ChatMessageWidget {
                 ? MarkdownRenderer.render(message.reasoningContent())
                 : null;
 
-        // Extract [text](url) links from raw markdown for click handling
+        // Extract links from raw markdown for click handling
         if (!isError() && !isTool() && !isSystem()) {
+            // Plain http(s):// URLs
+            Matcher urlMatcher = Pattern.compile("https?://[^\\s<>\"']+")
+                    .matcher(message.content());
+            while (urlMatcher.find()) {
+                linkUrls.add(urlMatcher.group());
+            }
+            // Markdown [text](url) links
             Matcher m = Pattern.compile("\\[([^\\]]+)\\]\\(([^\\)]+)\\)")
                     .matcher(message.content());
             while (m.find()) {

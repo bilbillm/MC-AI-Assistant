@@ -10,7 +10,6 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
 
-import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -308,11 +307,10 @@ public class MessageListWidget extends AbstractWidget {
         String rawUrl = widget.getLinkUrls().get(widget.getLinkUrls().size() - 1);
         if (rawUrl == null || rawUrl.isBlank()) return;
         try {
-            String url = rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
-                    ? rawUrl : "https://" + rawUrl;
-            Util.getPlatform().openUri(URI.create(url));
-        } catch (Exception ignored) {
-            // Silently fail — don't crash on malformed URLs
+            String url = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
+            Util.getPlatform().openUri(url);
+        } catch (Exception e) {
+            System.err.println("[AgentChat] Failed to open link: " + e.getMessage());
         }
     }
 
