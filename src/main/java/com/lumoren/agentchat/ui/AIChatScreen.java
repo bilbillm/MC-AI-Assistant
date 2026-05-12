@@ -334,6 +334,11 @@ public class AIChatScreen extends Screen {
             return;
         }
 
+        // Handle project cancellation
+        if (handleCancelProject(text)) {
+            return;
+        }
+
         // Handle project creation confirmation locally
         if (handleConfirmation(text)) {
             return;
@@ -574,6 +579,33 @@ public class AIChatScreen extends Screen {
             return m.group(1).strip();
         }
         return text;
+    }
+
+    /**
+     * Handle project cancellation commands.
+     * "取消项目" / "删除项目" / "cancel project" → archives the active project.
+     *
+     * @return true if the text was handled as a cancel command
+     */
+    private boolean handleCancelProject(String text) {
+        ProjectManager pm = ProjectManager.getInstance();
+        if (pm == null || pm.getActiveProject() == null) {
+            return false;
+        }
+
+        String t = text.strip().toLowerCase();
+        if (!t.equals("取消项目") && !t.equals("删除项目")
+                && !t.equals("cancel project") && !t.equals("cancel")) {
+            return false;
+        }
+
+        String projectName = pm.getActiveProject().getName();
+        pm.archiveCurrentProject();
+        thread.addMessage(ChatMessage.system("🚫 Project \"" + projectName + "\" cancelled"));
+        if (messageList != null) {
+            messageList.onMessageAdded();
+        }
+        return true;
     }
 
     /**
