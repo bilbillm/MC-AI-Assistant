@@ -128,7 +128,7 @@ class AIChatServiceTest {
     // ========== 3. Max rounds exceeded ==========
 
     @Test
-    void maxRoundsExceeded_returnsError() throws Exception {
+    void maxRoundsExceeded_forcesCompletion() throws Exception {
         ChatMessage.ToolCall toolCall = new ChatMessage.ToolCall(
             "call_1", new ChatMessage.FunctionCall("get_inventory", "{}")
         );
@@ -140,11 +140,15 @@ class AIChatServiceTest {
         when(dispatcher.executeToolCalls(anyList(), any()))
             .thenReturn(List.of(ChatMessage.tool("call_1", "result")));
 
+        // After max rounds, forces a final non-tool completion
+        when(client.chatCompletion(anyList(), isNull()))
+            .thenReturn(CompletableFuture.completedFuture("Your inventory contains 3 iron ingots."));
+
         CallbackCollector cb = new CallbackCollector();
         service.sendMessage("What's in my inventory?", List.of(), cb);
 
-        String error = cb.errored.get(5, TimeUnit.SECONDS);
-        assertTrue(error.contains("Maximum conversation rounds exceeded"));
+        String response = cb.completed.get(5, TimeUnit.SECONDS);
+        assertTrue(response.contains("iron ingots"), "Expected forced summary output, got: " + response);
     }
 
     // ========== 4. Error handling - API error bubbles up ==========
