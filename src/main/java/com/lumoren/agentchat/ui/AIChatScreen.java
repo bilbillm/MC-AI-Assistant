@@ -523,19 +523,6 @@ public class AIChatScreen extends Screen {
             messageList.onMessageAdded();
         }
     }
-        thread.addMessage(ChatMessage.assistant("Here's your project plan for \"" + pendingProjectName + "\":"));
-        for (Task t : tasks) {
-            thread.addMessage(ChatMessage.system("☐ " + t.description()));
-        }
-
-        // Add confirmation message to chat
-        String confirmMsg = I18nHelper.translateToString(I18nKeys.PROJECT_CREATE_CONFIRM)
-            + " (reply \"确认\" or \"confirm\" to create this project)";
-        thread.addMessage(ChatMessage.system(confirmMsg));
-        if (messageList != null) {
-            messageList.onMessageAdded();
-        }
-    }
 
     /** @return the content of the last assistant message in the thread, or null */
     private String getLastAiResponse() {
