@@ -28,6 +28,7 @@ public class WebSearchTool implements GameTool {
     private static final String DESCRIPTION =
             "Search the web for Minecraft information. Returns search results as text.";
     private static final String DDG_HTML_URL = "https://html.duckduckgo.com/html/?q=";
+    private static final String BING_URL = "https://www.bing.com/search?q=";
 
     // Patterns for extracting results from DuckDuckGo HTML
     private static final Pattern RESULT_LINK_PATTERN =
@@ -80,14 +81,33 @@ public class WebSearchTool implements GameTool {
             String url = DDG_HTML_URL + encodedQuery;
 
             HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(10))
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
 
+            // Try DuckDuckGo first, fall back to Bing
+            String result = trySearch(client, DDG_HTML_URL + encodedQuery, query);
+            if (result.startsWith("Search unavailable")) {
+                result = trySearch(client, BING_URL + encodedQuery, query);
+            }
+            return new ToolResult(NAME, result);
+
+        } catch (Exception e) {
+            return new ToolResult(NAME, "Search unavailable: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Try to search with a given URL, return formatted results or error message.
+     */
+    private String trySearch(HttpClient client, String searchUrl, String query) {
+        try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
+                    .uri(URI.create(searchUrl))
                     .header("User-Agent",
                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .timeout(Duration.ofSeconds(15))
+                    .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                    .timeout(Duration.ofSeconds(8))
                     .GET()
                     .build();
 
@@ -95,20 +115,19 @@ public class WebSearchTool implements GameTool {
                     HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
-                return new ToolResult(NAME, "Search unavailable (HTTP " + response.statusCode() + ")");
+                return "Search unavailable (HTTP " + response.statusCode() + ")";
             }
 
             String html = response.body();
             List<SearchResult> results = parseResults(html);
 
             if (results.isEmpty()) {
-                return new ToolResult(NAME, "No results found for: " + query);
+                return "No results found for: " + query;
             }
 
-            return new ToolResult(NAME, formatResults(results));
-
+            return formatResults(results);
         } catch (Exception e) {
-            return new ToolResult(NAME, "Search unavailable: " + e.getMessage());
+            return "Search unavailable: " + e.getMessage();
         }
     }
 
