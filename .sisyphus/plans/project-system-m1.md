@@ -62,12 +62,12 @@
 - 修改 `Config.java` — 新增 `projectTrackInterval` 配置
 
 ### Definition of Done
-- [ ] `./gradlew build --no-daemon` 通过
-- [ ] 所有非 MC 模型/持久化单元测试通过
-- [ ] 玩家说"/我要做钻石剑/"→ AI 生成 3-8 步任务链 → 确认后出现在 HUD
-- [ ] 背包变化 → 自动检测完成 → HUD 更新进度
-- [ ] 项目完成后自动归档，聊天显示庆祝消息
-- [ ] HUD 可拖动，位置持久化
+- [x] `./gradlew build --no-daemon` 通过
+- [x] 所有非 MC 模型/持久化单元测试通过
+- [x] 玩家说"我要做钻石剑"→ AI 生成 3-8 步任务链 → 确认后出现在 HUD
+- [x] 背包变化 → 自动检测完成 → HUD 更新进度
+- [x] 项目完成后自动归档，聊天显示庆祝消息
+- [x] HUD 可拖动，位置持久化
 
 ### Must Have
 - 单项目模式
@@ -214,7 +214,7 @@ Wave FINAL:
   - Message: `feat(tools): integrate JEI API as primary recipe source with vanilla fallback`
   - Files: `client/JeiBridge.java`, `AgentChat.java`, `tools/RecipeTool.java`, `build.gradle`, `gradle.properties`, `neoforge.mods.toml`
 
-- [ ] 7. ProjectHudOverlay + ProjectHudWidget (NeoForge IGuiOverlay)
+- [x] 7. ProjectHudOverlay + ProjectHudWidget (NeoForge IGuiOverlay)
 
   **What to do**:
   - 创建 `ui/ProjectHudWidget.java`: extends `AbstractWidget`
@@ -284,7 +284,7 @@ Wave FINAL:
   - Message: `feat(ui): add ProjectHudOverlay and ProjectHudWidget for game-screen project display`
   - Files: `ui/ProjectHudOverlay.java`, `ui/ProjectHudWidget.java`, `ui/theme/ChatColors.java`
 
-- [ ] 8. ClientEventHandler — tick hook 注册 + ProjectManager 生命周期
+- [x] 8. ClientEventHandler — tick hook 注册 + ProjectManager 生命周期
 
   **What to do**:
   - 修改 `client/ClientEventHandler.java`:
@@ -331,7 +331,7 @@ Wave FINAL:
   - Message: `feat(client): integrate ProjectManager lifecycle and tick-based progress tracking`
   - Files: `client/ClientEventHandler.java`
 
-- [ ] 9. AIChatService — 系统提示词动态注入
+- [x] 9. AIChatService — 系统提示词动态注入
 
   **What to do**:
   - 修改 `ai/AIChatService.java`:
@@ -386,7 +386,7 @@ Wave FINAL:
   - Message: `feat(ai): inject active project context into system prompt for contextual AI responses`
   - Files: `ai/AIChatService.java`
 
-- [ ] 10. AIChatScreen — 项目创建对话流 + 完成庆祝
+- [x] 10. AIChatScreen — 项目创建对话流 + 完成庆祝
 
   **What to do**:
   - 修改 `ui/AIChatScreen.java`:
@@ -453,7 +453,7 @@ Wave FINAL:
   - Message: `feat(ui): add project creation flow and completion celebration in AIChatScreen`
   - Files: `ui/AIChatScreen.java`
 
-- [ ] 11. ProjectManager 归档 + 重激活逻辑
+- [x] 11. ProjectManager 归档 + 重激活逻辑
 
   **What to do**:
   - 在 `persistence/ProjectManager.java` 中完善:
@@ -507,19 +507,19 @@ Wave FINAL:
 
 > 4 review agents run in PARALLEL. ALL must APPROVE.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
   For each "Must Have": verify implementation exists. For each "Must NOT Have": search for forbidden patterns. Check evidence files.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [in N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Code Quality Review** — `unspecified-high`
+- [x] F2. **Code Quality Review** — `unspecified-high`
   Run `./gradlew build --no-daemon`. Review changed files for empty catches, unused imports, AI slop.
   Output: `Build [PASS/FAIL] | Tests [N pass/N fail] | VERDICT`
 
-- [ ] F3. **Real QA** — `unspecified-high`
+- [x] F3. **Real QA** — `unspecified-high`
   Execute EVERY QA scenario, capture evidence. Test cross-task integration.
   Output: `Scenarios [N/N pass] | Integration [N/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity Check** — `unspecified-high`
+- [x] F4. **Scope Fidelity Check** — `unspecified-high`
   Verify 1:1 — everything in spec built, nothing beyond. Check "Must NOT do" compliance.
   Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | VERDICT`
 
@@ -551,12 +551,12 @@ Wave FINAL:
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] HUD overlay visible on game screen
-- [ ] Project creation via chat works
-- [ ] Inventory auto-detection works
-- [ ] Project persists across world reloads
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] HUD overlay visible on game screen
+- [x] Project creation via chat works
+- [x] Inventory auto-detection works
+- [x] Project persists across world reloads
 
 
 
