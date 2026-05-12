@@ -215,11 +215,6 @@ public class MessageListWidget extends AbstractWidget {
                         openUrl(widget.getLinkUrls().get(widget.getLinkUrls().size() - 1));
                         return true;
                     }
-                        }
-                        // If no specific link region matched, fall back to the last link
-                        openUrl(widget.getLinkUrls().get(widget.getLinkUrls().size() - 1));
-                        return true;
-                    }
                     selectedMessageUuid = null;
                     return false;
                 } else {
