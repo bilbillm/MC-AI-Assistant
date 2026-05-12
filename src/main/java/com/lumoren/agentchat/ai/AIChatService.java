@@ -112,17 +112,18 @@ public class AIChatService {
 
     private void runConversationLoop(List<ChatMessage> conversation, ChatCallback callback, int round) {
         if (round >= MAX_ROUNDS) {
-            // Forced output: inject system instruction to stop using tools and summarize
+            // Forced output: add a last system message telling AI to wrap up
             conversation.add(ChatMessage.system(
-                "Tool call limit reached. Based on all the information gathered so far, "
-                + "provide your best answer NOW without calling any more tools."
+                "You have reached the tool call limit. DO NOT request any more tools. "
+                + "Based on ALL the information gathered above, give your final answer "
+                + "as plain conversation text. Do NOT output JSON, tool calls, or data dumps. "
+                + "Just answer the player's original question naturally."
             ));
-            // Do a final non-streaming completion to get the summary text
+            // Do a final non-streaming completion WITHOUT tools to force a natural response
             client.chatCompletion(conversation, null)
                 .thenAccept(summary -> {
                     if (cancelled) return;
-                    callback.onThinking("Summarizing...");
-                    callback.onToken("(Tool call limit reached — showing best available answer)\n\n");
+                    callback.onThinking("Wrapping up...");
                     callback.onToken(summary);
                     callback.onComplete(summary);
                 })

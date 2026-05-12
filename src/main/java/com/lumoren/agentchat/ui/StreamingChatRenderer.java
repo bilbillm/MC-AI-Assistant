@@ -112,14 +112,8 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
 
     @Override
     public void onToolResult(String result) {
-        if (!streaming) return;
-        // Must dispatch to main thread — this callback fires from ForkJoinPool
-        net.minecraft.client.Minecraft.getInstance().execute(() -> {
-            if (!streaming) return; // re-check after dispatch
-            String display = result.length() > 200 ? result.substring(0, 200) + "..." : result;
-            thread.addMessage(new ChatMessage("tool", display, null, null, null, null));
-            notifyUpdate();
-        });
+        // Tool results are internal — do NOT display in the chat UI
+        // Only the tool call itself (🔧 name) is shown via onToolCall
     }
 
     @Override
