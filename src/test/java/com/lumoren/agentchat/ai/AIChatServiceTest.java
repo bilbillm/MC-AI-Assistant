@@ -184,6 +184,6 @@ class AIChatServiceTest {
         List<ChatMessage> firstCallMessages = messagesCaptor.getValue();
         assertFalse(firstCallMessages.isEmpty());
         assertEquals("system", firstCallMessages.get(0).role());
-        assertTrue(firstCallMessages.get(0).content().contains("Minecraft assistant"));
+        assertTrue(firstCallMessages.get(0).content().contains("AI assistant"));
     }
 }
