@@ -316,6 +316,14 @@ public final class MarkdownRenderer {
                 }
             }
 
+            // Handle surrogate pairs (emoji, CJK extension) — must be kept together
+            if (Character.isHighSurrogate(c) && i + 1 < len
+                    && Character.isLowSurrogate(text.charAt(i + 1))) {
+                result.append(Component.literal(text.substring(i, i + 2)));
+                i += 2;
+                continue;
+            }
+
             // Regular character
             result.append(Component.literal(String.valueOf(c)));
             i++;
