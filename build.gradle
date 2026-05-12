@@ -12,93 +12,15 @@ java {
     }
 }
 
-neoForge {
-    version = neo_version
-
-    parchment {
-        minecraftVersion = "1.21.1"
-        mappingsVersion = "2024.11.17"
+// Auto-deploy: copy built JAR to Minecraft mods folder
+tasks.register('deployToMods', Copy) {
+    dependsOn build
+    from layout.buildDirectory.file("libs/${mod_id}-${mod_version}.jar")
+    into "D:/MC/.minecraft/versions/1.21.1-NeoForge_21.1.219/mods"
+    rename { "${mod_id}-${mod_version}.jar" }
+    doLast {
+        println ">> Deployed ${mod_id}-${mod_version}.jar to mods folder"
     }
-
-    mods {
-        "$mod_id" {
-            sourceSet sourceSets.main
-            sourceSet sourceSets.test
-        }
-    }
-
-    runs {
-        client {
-            client()
-        }
-        data {
-            data()
-        }
-        server {
-            server()
-        }
-        gameTestServer {
-            type = "gameTestServer"
-        }
-    }
-
-}
-
-repositories {
-    maven { url = "https://maven.blamejared.com" }
-}
-
-dependencies {
-    // JEI API (compile-only for main, testImplementation for test classpath)
-    compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
-    testImplementation "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
-
-    // Test dependencies
-    testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
-    testImplementation "org.mockito:mockito-core:5.14.2"
-    testImplementation "org.mockito:mockito-junit-jupiter:5.14.2"
-    testImplementation "com.google.code.gson:gson:2.10.1"
-}
-
-// Use main compile/runtime classpath for tests too (NeoForge/Minecraft deps)
-configurations {
-    testCompileClasspath {
-        extendsFrom compileClasspath
-    }
-    testRuntimeClasspath {
-        extendsFrom runtimeClasspath
-    }
-}
-
-tasks.named('test', Test) {
-    useJUnitPlatform {
-        // Exclude tests that require Minecraft runtime (GUI, FML config, static registries)
-        excludeTags 'requires-minecraft'
-    }
-    // Required for Gson reflective access to java.time and private fields (Java 21 module system)
-    jvmArgs += [
-        '--add-opens', 'java.base/java.time=ALL-UNNAMED',
-        '--add-opens', 'java.base/java.lang=ALL-UNNAMED'
-    ]
-    maxParallelForks = 1
-    // Exclude test classes that need Minecraft runtime
-    filter {
-        excludeTestsMatching 'com.lumoren.agentchat.testutil.TestFrameworkTest'
-        excludeTestsMatching 'com.lumoren.agentchat.ui.ChatUITest'
-        excludeTestsMatching 'com.lumoren.agentchat.ai.GameDataAccessTest'
-        excludeTestsMatching 'com.lumoren.agentchat.tools.ItemEncyclopediaToolTest'
-        excludeTestsMatching 'com.lumoren.agentchat.persistence.ChatHistoryManagerTest'
-        excludeTestsMatching 'com.lumoren.agentchat.persistence.ConversationManagerTest'
-        excludeTestsMatching 'com.lumoren.agentchat.config.ConfigTest'
-        excludeTestsMatching 'com.lumoren.agentchat.config.SecretsConfigTest'
-        excludeTestsMatching 'com.lumoren.agentchat.tools.ToolRegistryTest'
-        excludeTestsMatching 'com.lumoren.agentchat.ui.MarkdownRendererTest'
-    }
-}
-
-tasks.named('compileJava', JavaCompile) {
-    options.encoding = 'UTF-8'
-    options.release = 21
 }
 
 // Generate mod metadata from templates
