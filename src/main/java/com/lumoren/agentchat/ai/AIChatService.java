@@ -173,16 +173,19 @@ public class AIChatService {
                     runConversationLoop(conversation, callback, round + 1);
                 } else {
                     // No tool calls - stream the final text response to the user
+                    ToolCallFilter xmlFilter = new ToolCallFilter();
                     client.chatCompletionStreaming(conversation, null, new OpenAICompatClient.StreamCallback() {
                         private final StringBuilder fullResponse = new StringBuilder();
 
                         @Override
                         public void onToken(String token) {
                             if (cancelled) return;
-                            // Filter out DeepSeek tool call XML fragments leaking into stream
-                            if (isToolCallFragment(token)) return;
-                            callback.onToken(token);
-                            fullResponse.append(token);
+                            // Filter out DeepSeek tool call XML fragments (multi-token spans)
+                            String filtered = xmlFilter.filter(token);
+                            if (filtered != null) {
+                                callback.onToken(filtered);
+                                fullResponse.append(filtered);
+                            }
                         }
 
                         @Override
@@ -220,13 +223,44 @@ public class AIChatService {
         return throwable;
     }
 
-    /** Filter out DeepSeek tool call XML fragments that leak into streaming content. */
-    private static boolean isToolCallFragment(String token) {
-        if (token == null || token.isEmpty()) return false;
-        // DeepSeek uses various markers for tool call XML in streaming content
-        return token.contains("▌") || token.contains("<DSML|") || token.contains("|tool_calls>")
-            || token.contains("|invoke") || token.contains("|parameter")
-            || token.contains("</invoke>") || token.contains("</parameter>")
-            || token.contains("</tool_calls>");
+    /**
+     * State-machine filter that suppresses DeepSeek tool call XML fragments
+     * from streaming output. Tool call XML spans multiple tokens — a simple
+     * per-token check is insufficient.
+     */
+    private static class ToolCallFilter {
+        private boolean inToolCall;
+        private final StringBuilder buffer = new StringBuilder();
+
+        /**
+         * Feed a token through the filter. Returns the token if it should be
+         * displayed, or null if it should be suppressed.
+         */
+        String filter(String token) {
+            if (token == null || token.isEmpty()) return token;
+
+            if (!inToolCall) {
+                // Check for tool call start markers
+                if (token.contains("▌") || token.contains("<DSML|") || token.contains("|tool_calls>")
+                        || token.contains("|invoke") || token.contains("|parameter")) {
+                    inToolCall = true;
+                    buffer.setLength(0);
+                    buffer.append(token);
+                    // Check if the tool call also ends within this token
+                    if (token.contains("</tool_calls>") || token.contains("|tool_calls")) {
+                        inToolCall = false;
+                    }
+                    return null;
+                }
+                return token;
+            } else {
+                // Inside a tool call block — buffer and suppress
+                buffer.append(token);
+                if (token.contains("</tool_calls>") || token.contains("|tool_calls")) {
+                    inToolCall = false;
+                }
+                return null;
+            }
+        }
     }
 }
