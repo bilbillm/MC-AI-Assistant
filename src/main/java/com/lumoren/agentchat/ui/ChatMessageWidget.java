@@ -6,8 +6,12 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * WeChat-style chat bubble with avatar and collapsible reasoning section.
@@ -30,6 +34,7 @@ public class ChatMessageWidget {
     private final Component renderedReasoning;
     private final Set<String> expandedReasonings;
     private final boolean selected; // right-click selected for context actions
+    private final List<String> linkUrls = new ArrayList<>();
 
     // Bounding box for click detection of reasoning toggle — set during render
     private int toggleX, toggleY, toggleWidth, toggleHeight;
@@ -48,6 +53,15 @@ public class ChatMessageWidget {
         this.renderedReasoning = hasReasoning()
                 ? MarkdownRenderer.render(message.reasoningContent())
                 : null;
+
+        // Extract [text](url) links from raw markdown for click handling
+        if (!isError() && !isTool() && !isSystem()) {
+            Matcher m = Pattern.compile("\\[([^\\]]+)\\]\\(([^\\)]+)\\)")
+                    .matcher(message.content());
+            while (m.find()) {
+                linkUrls.add(m.group(2));
+            }
+        }
     }
 
     public void render(GuiGraphics graphics, int x, int y, int width, Font font) {
@@ -117,6 +131,11 @@ public class ChatMessageWidget {
             expandedReasonings.add(message.id());
         }
     }
+
+    /** Get extracted link URLs from markdown content. */
+    public List<String> getLinkUrls() { return linkUrls; }
+    /** True if this message contains one or more markdown links. */
+    public boolean hasLinks() { return !linkUrls.isEmpty(); }
 
     /** Check if a click at absolute screen coords hits the reasoning toggle for this widget at (widgetX, widgetY). */
     public boolean hitReasoningToggle(double mx, double my, int widgetX, int widgetY, Font font) {

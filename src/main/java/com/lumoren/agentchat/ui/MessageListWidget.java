@@ -3,12 +3,14 @@ package com.lumoren.agentchat.ui;
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ConversationThread;
 import com.lumoren.agentchat.ui.theme.ChatColors;
+import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
 
+import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -200,6 +202,11 @@ public class MessageListWidget extends AbstractWidget {
                         widget.toggleReasoning();
                         return true;
                     }
+                    // Check if message has clickable links
+                    if (widget.hasLinks()) {
+                        openLinkFromWidget(widget);
+                        return true;
+                    }
                     selectedMessageUuid = null;
                     return false;
                 } else {
@@ -224,6 +231,10 @@ public class MessageListWidget extends AbstractWidget {
             if (mouseY >= currentY && mouseY <= currentY + h) {
                 if (sw.hitReasoningToggle(mouseX, mouseY, listX, currentY, font)) {
                     sw.toggleReasoning();
+                    return true;
+                }
+                if (sw.hasLinks()) {
+                    openLinkFromWidget(sw);
                     return true;
                 }
             }
@@ -290,6 +301,19 @@ public class MessageListWidget extends AbstractWidget {
     public void resetAutoScroll() {
         autoScroll = true;
         scrollToBottom();
+    }
+
+    private void openLinkFromWidget(ChatMessageWidget widget) {
+        if (!widget.hasLinks()) return;
+        String rawUrl = widget.getLinkUrls().get(widget.getLinkUrls().size() - 1);
+        if (rawUrl == null || rawUrl.isBlank()) return;
+        try {
+            String url = rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
+                    ? rawUrl : "https://" + rawUrl;
+            Util.getPlatform().openUri(URI.create(url));
+        } catch (Exception ignored) {
+            // Silently fail — don't crash on malformed URLs
+        }
     }
 
     private int computeTotalContentHeight(int contentWidth) {
