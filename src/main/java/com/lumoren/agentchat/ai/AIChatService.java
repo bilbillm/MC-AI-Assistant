@@ -28,7 +28,7 @@ public class AIChatService {
     private final OpenAICompatClient client;
     private final ToolCallDispatcher dispatcher;
     private final ToolRegistry toolRegistry;
-    private static final int MAX_ROUNDS = 5;
+    private static final int MAX_ROUNDS = 20;
     private volatile boolean cancelled;
 
     private static final String SYSTEM_PROMPT =
@@ -169,6 +169,8 @@ public class AIChatService {
                         @Override
                         public void onToken(String token) {
                             if (cancelled) return;
+                            // Filter out DeepSeek tool call XML fragments leaking into stream
+                            if (isToolCallFragment(token)) return;
                             callback.onToken(token);
                             fullResponse.append(token);
                         }
@@ -206,5 +208,13 @@ public class AIChatService {
             return throwable.getCause() != null ? throwable.getCause() : throwable;
         }
         return throwable;
+    }
+
+    /** Filter out DeepSeek tool call XML fragments that leak into streaming content. */
+    private static boolean isToolCallFragment(String token) {
+        if (token == null || token.isEmpty()) return false;
+        String t = token.strip();
+        return t.startsWith("<") && (t.contains("invoke") || t.contains("tool_call")
+            || t.contains("parameter") || t.contains("DSML") || t.contains("▌"));
     }
 }
