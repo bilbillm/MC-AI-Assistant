@@ -101,19 +101,25 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
     @Override
     public void onToolCall(String name, String arguments) {
         if (!streaming) return;
-        // Add tool call as a message in the conversation thread
-        String label = "🔧 " + name;
-        thread.addMessage(new ChatMessage("tool", label, null, null, null, null));
-        notifyUpdate();
+        // Must dispatch to main thread — this callback fires from ForkJoinPool
+        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            if (!streaming) return; // re-check after dispatch
+            String label = "🔧 " + name;
+            thread.addMessage(new ChatMessage("tool", label, null, null, null, null));
+            notifyUpdate();
+        });
     }
 
     @Override
     public void onToolResult(String result) {
         if (!streaming) return;
-        // Add tool result as a message (truncate long results for display)
-        String display = result.length() > 200 ? result.substring(0, 200) + "..." : result;
-        thread.addMessage(new ChatMessage("tool", display, null, null, null, null));
-        notifyUpdate();
+        // Must dispatch to main thread — this callback fires from ForkJoinPool
+        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            if (!streaming) return; // re-check after dispatch
+            String display = result.length() > 200 ? result.substring(0, 200) + "..." : result;
+            thread.addMessage(new ChatMessage("tool", display, null, null, null, null));
+            notifyUpdate();
+        });
     }
 
     @Override
