@@ -1,6 +1,8 @@
 package com.lumoren.agentchat.client;
 
 import com.lumoren.agentchat.AgentChat;
+import com.lumoren.agentchat.model.Project;
+import com.lumoren.agentchat.model.TaskStatus;
 import com.lumoren.agentchat.persistence.ConversationManager;
 import com.lumoren.agentchat.persistence.ProjectManager;
 import com.lumoren.agentchat.config.ConfigManager;
@@ -46,7 +48,7 @@ public class ClientEventHandler {
                         // Auto-archive if all tasks are done
                         Project active = fPm.getActiveProject();
                         if (active != null && active.getTasks().stream().allMatch(
-                                t -> t.status() == com.lumoren.agentchat.model.TaskStatus.DONE)) {
+                                t -> t.status() == TaskStatus.DONE)) {
                             Minecraft.getInstance().execute(() -> {
                                 if (Minecraft.getInstance().screen instanceof AIChatScreen screen) {
                                     screen.onProjectCompleted(active.getName());
