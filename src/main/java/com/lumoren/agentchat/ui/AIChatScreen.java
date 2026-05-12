@@ -68,6 +68,7 @@ public class AIChatScreen extends Screen {
     private boolean pendingProjectCreation;
     private String pendingProjectName;
     private List<Task> pendingTasks;
+    private String pendingPlanningPrompt; // injected into API call, NOT displayed in UI
 
     public AIChatScreen() {
         super(I18nHelper.translate(I18nKeys.TITLE));
@@ -373,6 +374,15 @@ public class AIChatScreen extends Screen {
         messageList.resetAutoScroll();
         autoSave();
         List<ChatMessage> history = thread.getMessages().subList(0, thread.getMessages().size() - 1);
+
+        // Inject pending project planning prompt into API history (not visible in UI)
+        if (pendingPlanningPrompt != null) {
+            List<ChatMessage> augmented = new java.util.ArrayList<>(history);
+            augmented.add(ChatMessage.system(pendingPlanningPrompt));
+            history = augmented;
+            pendingPlanningPrompt = null;
+        }
+
         chatService.sendMessage(text, history, streamer);
         refreshThreadList();
     }
@@ -437,15 +447,15 @@ public class AIChatScreen extends Screen {
             }
             pendingProjectName = cleanGoal;
 
-            // Inject system prompt asking AI to produce a JSON task chain
-            thread.addMessage(ChatMessage.system(
+            // Store planning prompt for API injection — do NOT add to ConversationThread
+            // to prevent the raw system prompt from appearing in the chat UI
+            pendingPlanningPrompt = 
                 "The player wants to accomplish: \"" + cleanGoal + "\". " +
                 "Break this down into a structured JSON task chain with 3-8 steps. " +
                 "Return ONLY valid JSON in this format: " +
                 "{\"tasks\": [{\"description\": \"...\", " +
                 "\"type\": \"CRAFT|GATHER|GO_TO|USE|KILL|PLAN\", " +
-                "\"items\": [{\"itemId\": \"minecraft:xxx\", \"count\": N}]}]}"
-            ));
+                "\"items\": [{\"itemId\": \"minecraft:xxx\", \"count\": N}]}]}";
         }
     }
 
@@ -495,6 +505,16 @@ public class AIChatScreen extends Screen {
 
         pendingTasks = tasks;
 
+        // Replace raw JSON assistant message with formatted task list
+        int aiIndex = getLastAiResponseIndex();
+        if (aiIndex >= 0) {
+            thread.removeMessagesFrom(aiIndex);
+        }
+        thread.addMessage(ChatMessage.assistant("Here's your project plan for \"" + pendingProjectName + "\":"));
+        for (Task t : tasks) {
+            thread.addMessage(ChatMessage.system("☐ " + t.description()));
+        }
+
         // Add confirmation message to chat
         String confirmMsg = I18nHelper.translateToString(I18nKeys.PROJECT_CREATE_CONFIRM)
             + " (reply \"确认\" or \"confirm\" to create this project)";
@@ -513,6 +533,17 @@ public class AIChatScreen extends Screen {
             }
         }
         return null;
+    }
+
+    /** @return the index of the last assistant message in the thread, or -1 */
+    private int getLastAiResponseIndex() {
+        List<ChatMessage> messages = thread.getMessages();
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if ("assistant".equals(messages.get(i).role())) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**

@@ -89,7 +89,13 @@ public class AIChatService {
             conversation.add(ProjectPlanningService.buildProjectContextMessage(pm.getActiveProject()));
         }
 
-        conversation.addAll(history);
+        // Filter out display-only tool messages (no tool_call_id) from UI history
+        // StreamingChatRenderer creates these for visual feedback but API rejects them
+        for (ChatMessage h : history) {
+            if (!("tool".equals(h.role()) && h.toolCallId() == null)) {
+                conversation.add(h);
+            }
+        }
         conversation.add(ChatMessage.user(userInput));
 
         runConversationLoop(conversation, callback, 0);
