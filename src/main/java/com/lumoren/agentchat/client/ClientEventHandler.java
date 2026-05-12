@@ -4,6 +4,7 @@ import com.lumoren.agentchat.AgentChat;
 import com.lumoren.agentchat.persistence.ConversationManager;
 import com.lumoren.agentchat.ui.AIChatScreen;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -40,6 +41,13 @@ public class ClientEventHandler {
     @SubscribeEvent
     public static void onLevelUnload(LevelEvent.Unload event) {
         if (initialized && event.getLevel().isClientSide()) {
+            // Close the chat screen before shutdown to trigger save
+            // This prevents data loss from in-flight AI responses
+            Minecraft mc = Minecraft.getInstance();
+            Screen current = mc.screen;
+            if (current instanceof AIChatScreen) {
+                current.onClose();
+            }
             ConversationManager.shutdown();
             initialized = false;
         }

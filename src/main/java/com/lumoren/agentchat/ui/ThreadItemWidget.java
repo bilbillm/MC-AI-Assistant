@@ -26,7 +26,7 @@ public class ThreadItemWidget extends AbstractWidget {
         this.thread = thread;
         this.isCurrent = isCurrent;
         this.font = font;
-        this.active = false;
+        this.active = true;
     }
 
     @Override

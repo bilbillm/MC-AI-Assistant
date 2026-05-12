@@ -24,22 +24,28 @@ public class MessageListWidget extends AbstractWidget {
 
     private final ConversationThread thread;
     private final StreamingChatRenderer streamer;
-    private final Set<String> expandedReasonings = new HashSet<>();
+    private final Set<String> expandedReasonings;
 
     private int scrollOffset;
     private int maxScrollOffset;
     private boolean autoScroll = true;
     private Font font;
 
+    // right-click selection for recall/edit context buttons
+    private String selectedMessageUuid;
+    private java.util.function.Consumer<String> onRecall;
+    private java.util.function.Consumer<String> onEdit;
+
     // Scrollbar drag state
     private boolean draggingScrollbar;
     private double dragStartY;
     private int dragStartOffset;
 
-    public MessageListWidget(ConversationThread thread, StreamingChatRenderer streamer) {
+    public MessageListWidget(ConversationThread thread, StreamingChatRenderer streamer, Set<String> expandedReasonings) {
         super(0, 0, 0, 0, Component.empty());
         this.thread = thread;
         this.streamer = streamer;
+        this.expandedReasonings = expandedReasonings != null ? expandedReasonings : new HashSet<>();
         this.scrollOffset = 0;
     }
 
@@ -50,6 +56,11 @@ public class MessageListWidget extends AbstractWidget {
         setHeight(height);
         this.font = font;
     }
+
+    public void setSelectedMessageUuid(String uuid) { this.selectedMessageUuid = uuid; }
+    public String getSelectedMessageUuid() { return selectedMessageUuid; }
+    public void setOnRecall(java.util.function.Consumer<String> onRecall) { this.onRecall = onRecall; }
+    public void setOnEdit(java.util.function.Consumer<String> onEdit) { this.onEdit = onEdit; }
 
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
@@ -70,7 +81,8 @@ public class MessageListWidget extends AbstractWidget {
         int currentY = listY - scrollOffset;
 
         for (ChatMessage msg : thread.getMessages()) {
-            ChatMessageWidget widget = new ChatMessageWidget(msg, contentWidth, expandedReasonings);
+            boolean isSelected = msg.id().equals(selectedMessageUuid);
+            ChatMessageWidget widget = new ChatMessageWidget(msg, contentWidth, expandedReasonings, isSelected);
             int h = widget.getHeight(font, listWidth);
             if (currentY + h > listY && currentY < listY + listHeight) {
                 widget.render(graphics, listX, currentY, listWidth, font);
@@ -83,7 +95,7 @@ public class MessageListWidget extends AbstractWidget {
             ChatMessage placeholder = new ChatMessage("assistant",
                     streamer.getCurrentContent(), null, null, null,
                     streamer.hasReasoningContent() ? streamer.getReasoningContent() : null);
-            ChatMessageWidget streamingWidget = new ChatMessageWidget(placeholder, contentWidth, expandedReasonings);
+            ChatMessageWidget streamingWidget = new ChatMessageWidget(placeholder, contentWidth, expandedReasonings, false);
             int widgetHeight = streamingWidget.getHeight(font, listWidth);
             if (currentY + widgetHeight > listY && currentY < listY + listHeight) {
                 streamingWidget.render(graphics, listX, currentY, listWidth, font);
@@ -105,27 +117,26 @@ public class MessageListWidget extends AbstractWidget {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button != 0) return false;
+        // Only handle left and right clicks
+        if (button != 0 && button != 1) return false;
         int listX = getX(), listY = getY();
         int listWidth = getWidth(), listHeight = getHeight();
         if (mouseX < listX || mouseX > listX + listWidth || mouseY < listY || mouseY > listY + listHeight)
             return false;
 
-        // Check scrollbar interaction first
-        if (maxScrollOffset > 0) {
+        // Check scrollbar interaction first (left-click only)
+        if (button == 0 && maxScrollOffset > 0) {
             int sbX = listX + listWidth - SCROLLBAR_WIDTH - SCROLLBAR_MARGIN;
             if (mouseX >= sbX && mouseX <= sbX + SCROLLBAR_WIDTH) {
                 float thumbRatio = Math.min(1.0f, (float) listHeight / (listHeight + maxScrollOffset));
                 int thumbHeight = Math.max(8, (int) (listHeight * thumbRatio));
                 int thumbY = listY + (int) ((listHeight - thumbHeight) * ((float) scrollOffset / maxScrollOffset));
                 if (mouseY >= thumbY && mouseY <= thumbY + thumbHeight) {
-                    // Start dragging the thumb
                     draggingScrollbar = true;
                     dragStartY = mouseY;
                     dragStartOffset = scrollOffset;
                     return true;
                 }
-                // Clicked on track (above or below thumb) → jump scroll
                 float clickProgress = (float) (mouseY - listY) / listHeight;
                 scrollOffset = (int) (clickProgress * maxScrollOffset);
                 scrollOffset = Math.max(0, Math.min(scrollOffset, maxScrollOffset));
@@ -137,24 +148,78 @@ public class MessageListWidget extends AbstractWidget {
         int contentWidth = listWidth - SCROLLBAR_WIDTH - SCROLLBAR_MARGIN;
         int currentY = listY - scrollOffset;
 
+        // First pass: check for context button clicks on the selected message (left-click only)
+        if (button == 0 && selectedMessageUuid != null) {
+            for (ChatMessage msg : thread.getMessages()) {
+                if (!msg.id().equals(selectedMessageUuid)) {
+                    ChatMessageWidget tmp = new ChatMessageWidget(msg, contentWidth, expandedReasonings, false);
+                    currentY += tmp.getHeight(font, listWidth);
+                    continue;
+                }
+                if (!"user".equals(msg.role())) { break; }
+                ChatMessageWidget widget = new ChatMessageWidget(msg, contentWidth, expandedReasonings, true);
+                int h = widget.getHeight(font, listWidth);
+                // Check if click is on recall or edit action button area.
+                // Buttons render at: recallX = bubbleX + bubbleWidth - 68, editX = recallX + 34
+                // where bubbleX + bubbleWidth ≈ listX + listWidth - AVATAR_SIZE - AVATAR_GAP = listX + listWidth - 22
+                // So recallX ≈ listX + listWidth - 90, editX ≈ listX + listWidth - 56
+                // Y area: roughly currentY + h - 22 to currentY + h - 2 (generous hitbox)
+                int btnTop = currentY + h - 22;
+                int btnBot = currentY + h - 2;
+                int recallStart = listX + listWidth - 92;
+                int editStart = listX + listWidth - 56;
+                if (mouseX >= recallStart && mouseX <= recallStart + 34
+                        && mouseY >= btnTop && mouseY <= btnBot) {
+                    String recalledUuid = selectedMessageUuid;
+                    selectedMessageUuid = null;
+                    if (onRecall != null) onRecall.accept(recalledUuid);
+                    return true;
+                }
+                if (mouseX >= editStart && mouseX <= editStart + 34
+                        && mouseY >= btnTop && mouseY <= btnBot) {
+                    String editedUuid = selectedMessageUuid;
+                    selectedMessageUuid = null;
+                    if (onEdit != null) onEdit.accept(editedUuid);
+                    return true;
+                }
+                // Click elsewhere — deselect
+                selectedMessageUuid = null;
+                return false;
+            }
+        }
+
+        // Second pass: hit-test each message
+        currentY = listY - scrollOffset;
         for (ChatMessage msg : thread.getMessages()) {
             ChatMessageWidget widget = new ChatMessageWidget(msg, contentWidth, expandedReasonings);
             int h = widget.getHeight(font, listWidth);
             if (mouseY >= currentY && mouseY <= currentY + h) {
-                if (widget.hitReasoningToggle(mouseX, mouseY, listX, currentY, font)) {
-                    widget.toggleReasoning();
+                if (button == 0) {
+                    // Left-click: reasoning toggle or deselect
+                    if (widget.hitReasoningToggle(mouseX, mouseY, listX, currentY, font)) {
+                        widget.toggleReasoning();
+                        return true;
+                    }
+                    selectedMessageUuid = null;
+                    return false;
+                } else {
+                    // Right-click: select user message for context actions
+                    if ("user".equals(msg.role())) {
+                        selectedMessageUuid = msg.id().equals(selectedMessageUuid) ? null : msg.id();
+                    } else {
+                        selectedMessageUuid = null;
+                    }
                     return true;
                 }
-                return false;
             }
             currentY += h;
         }
-        // Also check streaming placeholder
-        if (streamer.isStreaming() && (streamer.hasStreamingContent() || streamer.hasReasoningContent())) {
+        // Also check streaming placeholder (left-click only)
+        if (button == 0 && streamer.isStreaming() && (streamer.hasStreamingContent() || streamer.hasReasoningContent())) {
             ChatMessage placeholder = new ChatMessage("assistant",
                     streamer.getCurrentContent(), null, null, null,
                     streamer.hasReasoningContent() ? streamer.getReasoningContent() : null);
-            ChatMessageWidget sw = new ChatMessageWidget(placeholder, contentWidth, expandedReasonings);
+            ChatMessageWidget sw = new ChatMessageWidget(placeholder, contentWidth, expandedReasonings, false);
             int h = sw.getHeight(font, listWidth);
             if (mouseY >= currentY && mouseY <= currentY + h) {
                 if (sw.hitReasoningToggle(mouseX, mouseY, listX, currentY, font)) {
@@ -163,6 +228,7 @@ public class MessageListWidget extends AbstractWidget {
                 }
             }
         }
+        selectedMessageUuid = null;
         return false;
     }
 
@@ -213,12 +279,17 @@ public class MessageListWidget extends AbstractWidget {
     protected void updateWidgetNarration(NarrationElementOutput output) {}
 
     public void scrollToBottom() {
-        autoScroll = true;
         if (maxScrollOffset > 0) scrollOffset = maxScrollOffset;
     }
 
     public void onMessageAdded() {
         if (autoScroll) scrollToBottom();
+    }
+
+    /** Force auto-scroll for new user message — re-enables following. */
+    public void resetAutoScroll() {
+        autoScroll = true;
+        scrollToBottom();
     }
 
     private int computeTotalContentHeight(int contentWidth) {
@@ -231,7 +302,7 @@ public class MessageListWidget extends AbstractWidget {
             ChatMessage placeholder = new ChatMessage("assistant",
                     streamer.getCurrentContent(), null, null, null,
                     streamer.hasReasoningContent() ? streamer.getReasoningContent() : null);
-            total += new ChatMessageWidget(placeholder, contentWidth, expandedReasonings).getHeight(font, getWidth());
+            total += new ChatMessageWidget(placeholder, contentWidth, expandedReasonings, false).getHeight(font, getWidth());
         }
         return total;
     }

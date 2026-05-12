@@ -59,13 +59,26 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
         notifyUpdate();
     }
 
+    /**
+     * Abort the current streaming session. Clears all in-flight state and prevents
+     * any pending callbacks (onComplete, onToken, onError) from modifying the thread.
+     */
+    public void abort() {
+        this.currentContent.setLength(0);
+        this.reasoningContent.setLength(0);
+        this.statusText = null;
+        this.errorText = null;
+        this.streaming = false;
+        this.completed = true;
+        this.hasError = false; // not an error — user-requested abort
+        notifyUpdate();
+    }
+
     // ==================== ChatCallback implementation ====================
 
     @Override
     public void onToken(String token) {
-        if (!streaming) {
-            startStreaming();
-        }
+        if (!streaming) return;
         currentContent.append(token);
         this.statusText = null;
         notifyUpdate();
@@ -73,9 +86,7 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
 
     @Override
     public void onReasoningToken(String token) {
-        if (!streaming) {
-            startStreaming();
-        }
+        if (!streaming) return;
         reasoningContent.append(token);
         notifyUpdate();
     }
@@ -89,6 +100,7 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
 
     @Override
     public void onError(String error) {
+        if (!streaming) return; // aborted — skip
         this.errorText = error;
         this.hasError = true;
         this.streaming = false;
@@ -102,6 +114,7 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
 
     @Override
     public void onComplete(String fullResponse) {
+        if (completed) return; // already completed via abort or previous complete
         this.streaming = false;
         this.completed = true;
         this.statusText = null;

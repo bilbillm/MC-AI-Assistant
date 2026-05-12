@@ -37,7 +37,11 @@ public class ToolCallDispatcher {
     }
 
     private String executeSingleTool(ChatMessage.ToolCall tc, Minecraft mc) {
-        ToolResult result = toolRegistry.executeTool(tc.function().name(), mc, tc.function().arguments());
-        return result.content();
+        try {
+            ToolResult result = toolRegistry.executeTool(tc.function().name(), mc, tc.function().arguments());
+            return result.content();
+        } catch (Exception e) {
+            return "Error executing tool '" + tc.function().name() + "': " + e.getMessage();
+        }
     }
 }

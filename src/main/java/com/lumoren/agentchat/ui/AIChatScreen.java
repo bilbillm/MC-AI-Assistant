@@ -46,6 +46,12 @@ public class AIChatScreen extends Screen {
     private int savedScroll = -1; // preserve scroll across rebuild
     private String firstUserMessage; // for auto-rename after first AI response
     private static boolean globalSidebarCollapsed = false; // persist across screen opens
+    private boolean sending; // guard against concurrent message sends
+    private boolean autoRenamePending; // prevent multiple auto-rename calls
+    private long autoRenameStartTime; // timeout guard for auto-rename
+    private String selectedMessageUuid; // right-click selected message for recall/edit
+    private String pendingEditMessageUuid; // UUID of message being deep-edited
+    private java.util.Set<String> expandedReasonings = new java.util.HashSet<>(); // persist across rebuildLayout
 
     public AIChatScreen() {
         super(I18nHelper.translate(I18nKeys.TITLE));
@@ -57,6 +63,8 @@ public class AIChatScreen extends Screen {
         super.init();
 
         firstUserMessage = null; // reset for new conversation
+        selectedMessageUuid = null; // reset recall/edit selection
+        pendingEditMessageUuid = null;
 
         var mgr = ConversationManager.getInstance();
         this.thread = mgr != null ? mgr.getCurrentThread() : null;
@@ -73,7 +81,10 @@ public class AIChatScreen extends Screen {
         this.threadList = new ThreadListWidget(this::switchToThread, this::rebuildLayout);
         this.threadList.refresh(threads, thread.getId(), height, font);
         if (globalSidebarCollapsed || pendingCollapsed) {
-            threadList.setCollapsed(true);
+            // Collapse without triggering rebuildLayout — this init() already calculates
+            // the correct layout. Triggering rebuildLayout here causes a double-init cycle
+            // that leaves stale rendering state, producing text overlap artifacts.
+            threadList.setCollapsed(true, false);
             pendingCollapsed = false;
         }
         this.addRenderableWidget(threadList);
@@ -100,7 +111,9 @@ public class AIChatScreen extends Screen {
                 .bounds(chatRight - 80, PADDING, 40, 18).build());
 
         // Message list
-        this.messageList = new MessageListWidget(thread, streamer);
+        this.messageList = new MessageListWidget(thread, streamer, expandedReasonings);
+        this.messageList.setOnRecall(this::onRecallMessage);
+        this.messageList.setOnEdit(this::onEditMessage);
         this.messageList.setBounds(chatLeft, listTop, chatRight - chatLeft, listBottom - listTop, font);
         this.addRenderableWidget(messageList);
 
@@ -245,19 +258,36 @@ public class AIChatScreen extends Screen {
     private void onInputChanged(String text) { sendButton.active = !text.isBlank(); }
     private void onStreamUpdate() {
         if (messageList != null) messageList.onMessageAdded();
+        
+        // Reset sending guard when stream completes or errors
+        if (streamer.isCompleted() || streamer.hasError()) {
+            sending = false;
+        }
+        
         // Auto-rename after first AI response: ask AI for a concise title
-        if (firstUserMessage != null && streamer.isCompleted() && !streamer.hasError()) {
+        if (firstUserMessage != null && streamer.isCompleted() && !streamer.hasError() && !autoRenamePending) {
             String msg = firstUserMessage;
             firstUserMessage = null;
+            autoRenamePending = true;
+            autoRenameStartTime = System.currentTimeMillis();
             // Generate title via AI in background
             chatService.sendMessage(
                 "Generate a concise title (max 15 chars) for a conversation that starts with: \"" + msg + "\". Reply with ONLY the title, no quotes or extra text.",
                 List.of(),
                 new com.lumoren.agentchat.ai.AIChatService.ChatCallback() {
-                    @Override public void onToken(String token) {}
+                    @Override
+                    public void onToken(String token) {
+                        // Timeout: abort auto-rename if it takes too long
+                        if (System.currentTimeMillis() - autoRenameStartTime > 5000) {
+                            autoRenamePending = false;
+                        }
+                    }
                     @Override public void onThinking(String s) {}
-                    @Override public void onError(String e) {}
+                    @Override public void onError(String e) {
+                        autoRenamePending = false;
+                    }
                     @Override public void onComplete(String title) {
+                        autoRenamePending = false;
                         if (title != null && !title.isBlank()) {
                             thread.setName(title.strip().replace("\"", ""));
                             refreshThreadList();
@@ -270,6 +300,23 @@ public class AIChatScreen extends Screen {
     }
 
     private void sendMessage(String text) {
+        // Guard against concurrent message sends (rapid Enter presses)
+        if (sending) return;
+        sending = true;
+
+        // Deep edit pre-amble: truncate at the pending edit message, abort streaming
+        if (pendingEditMessageUuid != null) {
+            int editIndex = thread.findMessageIndex(pendingEditMessageUuid);
+            if (editIndex >= 0) {
+                if (streamer.isStreaming() || !streamer.isCompleted()) {
+                    chatService.cancel();
+                    streamer.abort();
+                }
+                thread.removeMessagesFrom(editIndex);
+            }
+            pendingEditMessageUuid = null;
+        }
+
         // Track first message for auto-rename
         if (thread.messageCount() == 0) {
             firstUserMessage = text;
@@ -278,7 +325,7 @@ public class AIChatScreen extends Screen {
         inputField.setValue("");
         sendButton.active = false;
         streamer.startStreaming();
-        messageList.scrollToBottom();
+        messageList.resetAutoScroll();
         autoSave();
         List<ChatMessage> history = thread.getMessages().subList(0, thread.getMessages().size() - 1);
         chatService.sendMessage(text, history, streamer);
@@ -288,5 +335,43 @@ public class AIChatScreen extends Screen {
     private void autoSave() {
         var mgr = ConversationManager.getInstance();
         if (mgr != null) mgr.save();
+    }
+
+    // ==================== Recall / Edit ====================
+
+    /** Recall: truncate conversation at the given message position. */
+    private void onRecallMessage(String messageUuid) {
+        int index = thread.findMessageIndex(messageUuid);
+        if (index < 0) return;
+
+        // Abort any in-flight streaming to prevent thread corruption
+        if (streamer.isStreaming() || !streamer.isCompleted()) {
+            chatService.cancel();
+            streamer.abort();
+            sending = false;
+        }
+
+        thread.removeMessagesFrom(index);
+        selectedMessageUuid = null;
+        pendingEditMessageUuid = null;
+        expandedReasonings.clear();
+        streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
+        autoSave();
+        rebuildLayout();
+        refreshThreadList();
+    }
+
+    /** Edit: fill input with old message text, prepare deep edit on submit. */
+    private void onEditMessage(String messageUuid) {
+        int index = thread.findMessageIndex(messageUuid);
+        if (index < 0) return;
+
+        ChatMessage msg = thread.getMessages().get(index);
+        pendingEditMessageUuid = messageUuid;
+        inputField.setValue(msg.content());
+        inputField.moveCursorToEnd(false);
+        inputField.setFocused(true);
+        sendButton.active = true;
+        selectedMessageUuid = null;
     }
 }

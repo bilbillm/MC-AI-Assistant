@@ -64,9 +64,22 @@ public class ChatHistoryManager {
             Gson gson = createGson();
             Type listType = new TypeToken<List<ConversationThread>>() {}.getType();
             List<ConversationThread> threads = gson.fromJson(json, listType);
-            return threads != null ? new ArrayList<>(threads) : new ArrayList<>();
+            if (threads == null) {
+                return new ArrayList<>();
+            }
+            // Filter out threads that failed to deserialize (returned null by adapter)
+            List<ConversationThread> valid = new ArrayList<>();
+            for (ConversationThread t : threads) {
+                if (t != null) {
+                    valid.add(t);
+                }
+            }
+            return valid;
         } catch (IOException e) {
             throw new RuntimeException("Failed to load chat history", e);
+        } catch (JsonSyntaxException | JsonIOException e) {
+            System.err.println("[AgentChat] Corrupt conversations.json — starting fresh: " + e.getMessage());
+            return new ArrayList<>();
         }
     }
 
@@ -120,22 +133,53 @@ public class ChatHistoryManager {
 
         @Override
         public ConversationThread deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
-            JsonObject obj = json.getAsJsonObject();
-            String id = obj.get("id").getAsString();
-            String name = obj.get("name").getAsString();
+            try {
+                JsonObject obj = json.getAsJsonObject();
+                
+                // Validate required fields exist and are strings
+                if (!obj.has("id") || obj.get("id").isJsonNull()) {
+                    System.err.println("[AgentChat] Skipping corrupt thread: missing 'id' field");
+                    return null;
+                }
+                if (!obj.has("name") || obj.get("name").isJsonNull()) {
+                    System.err.println("[AgentChat] Skipping corrupt thread: missing 'name' field");
+                    return null;
+                }
+                
+                String id = obj.get("id").getAsString();
+                String name = obj.get("name").getAsString();
 
-            List<ChatMessage> messages;
-            if (obj.has("messages") && !obj.get("messages").isJsonNull()) {
-                Type listType = new TypeToken<List<ChatMessage>>() {}.getType();
-                messages = context.deserialize(obj.get("messages"), listType);
-            } else {
-                messages = new ArrayList<>();
+                List<ChatMessage> messages;
+                if (obj.has("messages") && !obj.get("messages").isJsonNull()) {
+                    Type listType = new TypeToken<List<ChatMessage>>() {}.getType();
+                    messages = context.deserialize(obj.get("messages"), listType);
+                } else {
+                    messages = new ArrayList<>();
+                }
+
+                // Use defaults for missing/corrupt timestamps
+                Instant createdAt = Instant.now();
+                Instant updatedAt = Instant.now();
+                if (obj.has("createdAt") && !obj.get("createdAt").isJsonNull()) {
+                    try {
+                        createdAt = Instant.parse(obj.get("createdAt").getAsString());
+                    } catch (Exception e) {
+                        System.err.println("[AgentChat] Invalid 'createdAt' for thread " + id + " — using current time");
+                    }
+                }
+                if (obj.has("updatedAt") && !obj.get("updatedAt").isJsonNull()) {
+                    try {
+                        updatedAt = Instant.parse(obj.get("updatedAt").getAsString());
+                    } catch (Exception e) {
+                        System.err.println("[AgentChat] Invalid 'updatedAt' for thread " + id + " — using current time");
+                    }
+                }
+
+                return new ConversationThread(id, name, messages, createdAt, updatedAt);
+            } catch (RuntimeException e) {
+                System.err.println("[AgentChat] Skipping corrupt thread: " + e.getMessage());
+                return null;
             }
-
-            Instant createdAt = Instant.parse(obj.get("createdAt").getAsString());
-            Instant updatedAt = Instant.parse(obj.get("updatedAt").getAsString());
-
-            return new ConversationThread(id, name, messages, createdAt, updatedAt);
         }
     }
 }

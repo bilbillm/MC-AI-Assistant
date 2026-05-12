@@ -28,6 +28,7 @@ public class AIChatService {
     private final ToolCallDispatcher dispatcher;
     private final ToolRegistry toolRegistry;
     private static final int MAX_ROUNDS = 5;
+    private volatile boolean cancelled;
 
     private static final String SYSTEM_PROMPT =
         "You are a helpful Minecraft assistant. You can use tools to query the player's inventory, "
@@ -71,12 +72,22 @@ public class AIChatService {
      * @param callback  callback for receiving tokens, status updates, and the final response
      */
     public void sendMessage(String userInput, List<ChatMessage> history, ChatCallback callback) {
+        cancelled = false;
         List<ChatMessage> conversation = new ArrayList<>();
         conversation.add(ChatMessage.system(SYSTEM_PROMPT));
         conversation.addAll(history);
         conversation.add(ChatMessage.user(userInput));
 
         runConversationLoop(conversation, callback, 0);
+    }
+
+    /**
+     * Cancel any in-flight conversation request. Prevents callbacks from dispatching
+     * after the cancel point. The caller must also abort the {@link ChatCallback}
+     * (e.g. {@code StreamingChatRenderer.abort()}) to prevent stale state.
+     */
+    public void cancel() {
+        cancelled = true;
     }
 
     private void runConversationLoop(List<ChatMessage> conversation, ChatCallback callback, int round) {
@@ -89,6 +100,8 @@ public class AIChatService {
 
         client.chatCompletionWithTools(conversation, tools)
             .thenAccept(response -> {
+                if (cancelled) return;
+
                 if (response.toolCalls() != null && !response.toolCalls().isEmpty()) {
                     // AI requested tool calls - add assistant message to history and execute tools
                     conversation.add(response);
@@ -111,22 +124,26 @@ public class AIChatService {
 
                         @Override
                         public void onToken(String token) {
+                            if (cancelled) return;
                             callback.onToken(token);
                             fullResponse.append(token);
                         }
 
                         @Override
                         public void onReasoningToken(String token) {
+                            if (cancelled) return;
                             callback.onReasoningToken(token);
                         }
 
                         @Override
                         public void onComplete() {
+                            if (cancelled) return;
                             callback.onComplete(fullResponse.toString());
                         }
 
                         @Override
                         public void onError(Throwable error) {
+                            if (cancelled) return;
                             callback.onError(error.getMessage());
                         }
                     });

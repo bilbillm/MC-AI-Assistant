@@ -190,8 +190,9 @@ public class GameDataAccess {
                     ));
                 }
             }
-        } catch (Exception e) {
-            // 若配方 API 发生变更或不可用，返回空列表，避免崩溃
+        } catch (ArrayIndexOutOfBoundsException | NullPointerException e) {
+            // Recipe ingredient list may be empty or registry entry removed — skip gracefully
+            System.err.println("[AgentChat] Recipe lookup skipped malformed recipe: " + e.getMessage());
         }
 
         return results;

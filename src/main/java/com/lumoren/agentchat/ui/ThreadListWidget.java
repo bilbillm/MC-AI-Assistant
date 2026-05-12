@@ -59,7 +59,7 @@ public class ThreadListWidget extends AbstractWidget {
     }
 
     /** Set collapsed state. If notify=true, trigger onToggle callback. */
-    private void setCollapsed(boolean c, boolean notify) {
+    public void setCollapsed(boolean c, boolean notify) {
         if (this.collapsed != c) {
             this.collapsed = c;
             rebuildItemWidgets();

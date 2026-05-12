@@ -1,7 +1,7 @@
 package com.lumoren.agentchat.config;
 
 public class ConfigManager {
-    private static ConfigManager instance;
+    private static volatile ConfigManager instance;
     private final SecretsConfig secrets;
 
     private ConfigManager() {

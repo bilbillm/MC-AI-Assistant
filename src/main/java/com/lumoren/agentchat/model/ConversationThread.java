@@ -67,6 +67,39 @@ public class ConversationThread {
     }
 
     /**
+     * 从指定位置（含）截断消息列表。
+     * 保留 index 之前的所有消息，删除 index 及之后的消息。
+     *
+     * @param fromIndexInclusive 开始删除的位置（含）
+     * @throws IndexOutOfBoundsException 若 index 越界
+     */
+    public void removeMessagesFrom(int fromIndexInclusive) {
+        if (fromIndexInclusive < 0 || fromIndexInclusive > messages.size()) {
+            throw new IndexOutOfBoundsException(
+                "Index: " + fromIndexInclusive + ", Size: " + messages.size());
+        }
+        if (fromIndexInclusive < messages.size()) {
+            messages.subList(fromIndexInclusive, messages.size()).clear();
+        }
+        updatedAt = Instant.now();
+    }
+
+    /**
+     * 根据消息 ID 找到索引并从该位置截断。
+     *
+     * @param messageId 目标消息的 UUID
+     * @return 截断的起始索引，若未找到则返回 -1
+     */
+    public int findMessageIndex(String messageId) {
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i).id().equals(messageId)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
      * 获取不可变的消息列表副本。
      *
      * @return 只读消息列表

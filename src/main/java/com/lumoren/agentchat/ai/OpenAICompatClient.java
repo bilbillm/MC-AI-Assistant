@@ -226,9 +226,10 @@ public class OpenAICompatClient {
                                         }
                                     }
                                 }
-                            } catch (JsonSyntaxException e) {
-                                // 跳过格式错误的 SSE 行
-                            }
+                        } catch (JsonSyntaxException e) {
+                            // Log malformed SSE line for debugging, then skip
+                            System.err.println("[AgentChat] Malformed SSE data line skipped: " + e.getMessage());
+                        }
                         }
                     });
                     dispatchToMainThread(callback::onComplete);
@@ -280,10 +281,6 @@ public class OpenAICompatClient {
         // DeepSeek thinking mode: must pass reasoning_content back to API
         if (msg.reasoningContent() != null && !msg.reasoningContent().isBlank()) {
             obj.addProperty("reasoning_content", msg.reasoningContent());
-        }
-
-        if (msg.toolCallId() != null) {
-            obj.addProperty("tool_call_id", msg.toolCallId());
         }
 
         if (msg.toolCallId() != null) {
@@ -361,8 +358,9 @@ public class OpenAICompatClient {
             return CompletableFuture.failedFuture(new ApiRateLimitException("Rate limited after " + retryCount + " retries"));
         }
         if (status >= 500) {
-            if (retryCount < 1) {
-                return sleepAsync(500).thenCompose(v -> sendWithRetry(request, handler, retryCount + 1));
+            if (retryCount < 3) {
+                long delayMs = 500L * (1L << retryCount);
+                return sleepAsync(delayMs).thenCompose(v -> sendWithRetry(request, handler, retryCount + 1));
             }
         }
         if (status >= 400) {
@@ -386,6 +384,7 @@ public class OpenAICompatClient {
         if (mainThreadExecutor != null) {
             mainThreadExecutor.accept(runnable);
         } else {
+            System.err.println("[AgentChat] WARNING: mainThreadExecutor is null — callback running on wrong thread!");
             runnable.run();
         }
     }

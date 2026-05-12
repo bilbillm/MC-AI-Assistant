@@ -140,25 +140,27 @@ public class AgentChatCommand {
 
     /**
      * 获取当前世界的 ConversationManager，若未初始化则尝试用默认路径初始化。
+     * <p>
+     * 注意：若单例已被 {@link ClientEventHandler} 初始化，则不再覆盖，
+     * 避免 fallback 路径覆盖真实世界路径导致数据丢失。
      */
     private static ConversationManager getManager() {
         ConversationManager manager = ConversationManager.getInstance();
-        if (manager == null) {
-            Minecraft mc = Minecraft.getInstance();
-            Path worldPath = null;
-            if (mc.getSingleplayerServer() != null) {
-                worldPath = mc.getSingleplayerServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
-            }
-            if (worldPath != null) {
-                ConversationManager.initialize(worldPath);
-                manager = ConversationManager.getInstance();
-            } else {
-                // Fallback for multiplayer or before world load
-                ConversationManager.initialize(Paths.get(".").toAbsolutePath().resolve("agentchat_fallback"));
-                manager = ConversationManager.getInstance();
-            }
+        if (manager != null) {
+            return manager; // Already initialized by world load — don't overwrite
         }
-        return manager;
+        Minecraft mc = Minecraft.getInstance();
+        Path worldPath = null;
+        if (mc.getSingleplayerServer() != null) {
+            worldPath = mc.getSingleplayerServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
+        }
+        if (worldPath != null) {
+            ConversationManager.initialize(worldPath);
+        } else {
+            // Fallback: no world loaded yet, use temp path (will be overwritten on world load)
+            ConversationManager.initialize(Paths.get(".").toAbsolutePath().resolve("agentchat_fallback"));
+        }
+        return ConversationManager.getInstance();
     }
 
     private static void sendFeedback(String key) {

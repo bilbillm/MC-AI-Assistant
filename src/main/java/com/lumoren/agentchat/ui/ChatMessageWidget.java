@@ -29,13 +29,19 @@ public class ChatMessageWidget {
     private final Component renderedContent;
     private final Component renderedReasoning;
     private final Set<String> expandedReasonings;
+    private final boolean selected; // right-click selected for context actions
 
     // Bounding box for click detection of reasoning toggle — set during render
     private int toggleX, toggleY, toggleWidth, toggleHeight;
 
     public ChatMessageWidget(ChatMessage message, int maxWidth, Set<String> expandedReasonings) {
+        this(message, maxWidth, expandedReasonings, false);
+    }
+
+    public ChatMessageWidget(ChatMessage message, int maxWidth, Set<String> expandedReasonings, boolean selected) {
         this.message = message;
         this.expandedReasonings = expandedReasonings != null ? expandedReasonings : new HashSet<>();
+        this.selected = selected;
         this.renderedContent = isError()
                 ? Component.literal(message.content())
                 : MarkdownRenderer.render(message.content());
@@ -131,6 +137,21 @@ public class ChatMessageWidget {
         drawAvatar(graphics, x + width - AVATAR_SIZE, y, "U", ChatColors.AVATAR_USER_BG, font);
         drawBubble(graphics, bubbleX, y, bubbleWidth, bubbleHeight, ChatColors.BUBBLE_USER_BG);
         graphics.drawWordWrap(font, renderedContent, bubbleX + PADDING, y + PADDING, innerWidth, ChatColors.TEXT_PRIMARY);
+
+        // Context action buttons (recall / edit) when right-click selected
+        if (selected) {
+            int btnY = y + bubbleHeight - 14;
+            int btnW = 30;
+            int btnH = 12;
+            // Recall button
+            int recallX = bubbleX + bubbleWidth - (btnW * 2) - 8;
+            graphics.fill(recallX, btnY, recallX + btnW, btnY + btnH, 0x88_3B82F6);
+            graphics.drawString(font, "撤回", recallX + 4, btnY + 1, ChatColors.TEXT_PRIMARY);
+            // Edit button
+            int editX = recallX + btnW + 4;
+            graphics.fill(editX, btnY, editX + btnW, btnY + btnH, 0x88_3B82F6);
+            graphics.drawString(font, "编辑", editX + 4, btnY + 1, ChatColors.TEXT_PRIMARY);
+        }
     }
 
     private void renderAIBubble(GuiGraphics graphics, int x, int y, int width, Font font) {
