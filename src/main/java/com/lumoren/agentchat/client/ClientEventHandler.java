@@ -37,9 +37,14 @@ public class ClientEventHandler {
             tickCounter = 0;
             ProjectManager pm = ProjectManager.getInstance();
             if (pm != null && pm.getActiveProject() != null) {
-                if (tracker == null) tracker = new ProjectProgressTracker();
-                tracker.onClientTick(pm.getActiveProject(), Minecraft.getInstance(),
-                        ConfigManager.getInstance().getProjectTrackInterval());
+                if (tracker == null) {
+                    tracker = new ProjectProgressTracker();
+                    // Wire auto-completion: save project after tasks are marked done
+                    final ProjectManager fPm = pm;
+                    tracker.setOnProgressChanged(() -> fPm.saveProject(fPm.getActiveProject()));
+                }
+                // Pass interval=1 — ClientEventHandler already gates by tick counter
+                tracker.onClientTick(pm.getActiveProject(), Minecraft.getInstance(), 1);
             }
         }
     }

@@ -34,6 +34,13 @@ public class ProjectProgressTracker {
     /** Timestamp of the last death detection event. */
     long lastDeathDetection;
 
+    /** Callback for when tasks are auto-completed. */
+    private Runnable onProgressChanged;
+
+    public void setOnProgressChanged(Runnable callback) {
+        this.onProgressChanged = callback;
+    }
+
     /**
      * Called every game tick. Evaluates inventory changes at the configured interval.
      *
@@ -121,6 +128,9 @@ public class ProjectProgressTracker {
 
         if (changed) {
             project.setTasks(updated);
+            if (onProgressChanged != null) {
+                onProgressChanged.run();
+            }
         }
     }
 
