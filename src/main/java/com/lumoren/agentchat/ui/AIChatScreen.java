@@ -329,6 +329,11 @@ public class AIChatScreen extends Screen {
         // Guard against concurrent message sends (rapid Enter presses)
         if (sending) return;
 
+        // Handle debug commands locally (when debug mode is active)
+        if (handleDebugCommand(text)) {
+            return;
+        }
+
         // Handle project edit commands locally (don't send to AI)
         if (handleEditCommand(text)) {
             return;
@@ -722,6 +727,91 @@ public class AIChatScreen extends Screen {
         pendingProjectName = null;
         refreshProjectUI();
         return true;
+    }
+
+    /**
+     * Handle debug commands when debug mode is active.
+     * <ul>
+     *   <li>"show project state" — dump full project/task internals</li>
+     *   <li>"simulate inventory: item1 x5, item2 x3" — pretend items exist</li>
+     *   <li>"show conversation" — dump raw thread messages</li>
+     *   <li>"show performance" — timing stub</li>
+     * </ul>
+     *
+     * @return true if the text was handled as a debug command
+     */
+    private boolean handleDebugCommand(String text) {
+        if (!AIChatService.isDebugMode()) {
+            return false;
+        }
+
+        String t = text.strip().toLowerCase();
+
+        if (t.startsWith("show project state")) {
+            ProjectManager pm = ProjectManager.getInstance();
+            if (pm != null && pm.getActiveProject() != null) {
+                Project p = pm.getActiveProject();
+                StringBuilder sb = new StringBuilder("[PROJECT DEBUG]\n");
+                sb.append("Name: ").append(p.getName()).append("\n");
+                sb.append("Status: ").append(p.getStatus()).append("\n");
+                sb.append("Tasks: ").append(p.getTasks().size()).append("\n");
+                for (int i = 0; i < p.getTasks().size(); i++) {
+                    Task task = p.getTasks().get(i);
+                    sb.append("  ").append(i + 1).append(". [").append(task.status()).append("] ")
+                      .append(task.description()).append("\n");
+                    if (task.requiredItems() != null && !task.requiredItems().isEmpty()) {
+                        for (ItemRequirement ir : task.requiredItems()) {
+                            sb.append("     needs: ").append(ir.itemId()).append(" x").append(ir.needed())
+                              .append(" (has: ").append(ir.owned()).append(")\n");
+                        }
+                    }
+                }
+                thread.addMessage(ChatMessage.system(sb.toString()));
+            } else {
+                thread.addMessage(ChatMessage.system("[PROJECT DEBUG] No active project"));
+            }
+            refreshProjectUI();
+            return true;
+        }
+
+        if (t.startsWith("simulate inventory:")) {
+            int colonIdx = text.strip().indexOf(":");
+            String items = text.strip().substring(colonIdx + 1).strip();
+            thread.addMessage(ChatMessage.system("[SIMULATED INVENTORY] " + items));
+            thread.addMessage(ChatMessage.system("Tell the AI these items exist now."));
+            String prompt = "DEBUG SIMULATION: The player now HAS these items: " + items
+                + ". Pretend they are in the inventory. Use this for testing.";
+            thread.addMessage(ChatMessage.system(prompt));
+            refreshProjectUI();
+            return true;
+        }
+
+        if (t.startsWith("show conversation")) {
+            StringBuilder sb = new StringBuilder("[CONVERSATION DUMP]\n");
+            for (ChatMessage msg : thread.getMessages()) {
+                sb.append("[").append(msg.role()).append("] ");
+                if (msg.content() != null && msg.content().length() > 100) {
+                    sb.append(msg.content().substring(0, 100)).append("...");
+                } else {
+                    sb.append(msg.content());
+                }
+                if (msg.toolCalls() != null) {
+                    sb.append(" | tool_calls: ").append(msg.toolCalls().size());
+                }
+                sb.append("\n");
+            }
+            thread.addMessage(ChatMessage.system(sb.toString()));
+            refreshProjectUI();
+            return true;
+        }
+
+        if (t.startsWith("show performance")) {
+            thread.addMessage(ChatMessage.system("[PERFORMANCE] Not yet implemented. Use tools to test timing."));
+            refreshProjectUI();
+            return true;
+        }
+
+        return false;
     }
 
     /** Refresh UI after project state changes. */

@@ -30,6 +30,9 @@ public class AIChatService {
     private final ToolRegistry toolRegistry;
     private static final int MAX_ROUNDS = 20;
     private volatile boolean cancelled;
+    private static boolean debugMode = false;
+
+    public static boolean isDebugMode() { return debugMode; }
 
     private static final String SYSTEM_PROMPT = loadSystemPrompt();
 
@@ -90,6 +93,28 @@ public class AIChatService {
      */
     public void sendMessage(String userInput, List<ChatMessage> history, ChatCallback callback) {
         cancelled = false;
+
+        // Debug mode toggle — handled locally, not sent to AI
+        if (userInput.strip().equalsIgnoreCase("debug mode")) {
+            debugMode = true;
+            callback.onToken("[DEBUG MODE ENABLED]\n");
+            callback.onToken("Available debug capabilities:\n");
+            callback.onToken("- Tool testing: call any tool with raw args\n");
+            callback.onToken("- Project inspection: view internal state\n");
+            callback.onToken("- Inventory simulation: pretend to have items\n");
+            callback.onToken("- Conversation dump: see raw API messages\n");
+            callback.onToken("- Performance timing: tool call durations\n");
+            callback.onToken("Say 'debug off' to exit.\n");
+            callback.onComplete("[DEBUG MODE ENABLED]");
+            return;
+        }
+        if (userInput.strip().equalsIgnoreCase("debug off")) {
+            debugMode = false;
+            callback.onToken("[DEBUG MODE DISABLED]\n");
+            callback.onComplete("[DEBUG MODE DISABLED]");
+            return;
+        }
+
         List<ChatMessage> conversation = new ArrayList<>();
         conversation.add(ChatMessage.system(SYSTEM_PROMPT));
 
@@ -97,6 +122,20 @@ public class AIChatService {
         ProjectManager pm = ProjectManager.getInstance();
         if (pm != null && pm.getActiveProject() != null) {
             conversation.add(ProjectPlanningService.buildProjectContextMessage(pm.getActiveProject()));
+        }
+
+        // Inject debug mode instructions if active
+        if (debugMode) {
+            String debugPrompt = "\n\n## DEBUG MODE ACTIVE\n"
+                + "You are in debug mode. You have these additional capabilities:\n"
+                + "- Call tools with ANY arguments (even invalid ones) and I'll show the raw result including errors\n"
+                + "- Ask me to 'show project state' and I'll dump the full project/task internals\n"
+                + "- Ask me to 'simulate inventory: item1 x5, item2 x3' and I'll pretend those items exist\n"
+                + "- Ask me to 'show conversation' and I'll dump the raw messages being sent to the API\n"
+                + "- Ask me to 'show performance' and I'll show timing for recent tool calls\n"
+                + "- Be verbose about what you're doing — explain every step\n"
+                + "- This is for testing the mod, not for real gameplay — be thorough";
+            conversation.add(ChatMessage.system(debugPrompt));
         }
 
         // Filter out display-only tool messages (no tool_call_id) from UI history
