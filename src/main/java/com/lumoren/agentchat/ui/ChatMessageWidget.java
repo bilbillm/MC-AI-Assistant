@@ -36,6 +36,10 @@ public class ChatMessageWidget {
     private final boolean selected; // right-click selected for context actions
     private final List<String> linkUrls = new ArrayList<>();
 
+    /** Records the y-range and URL of a clickable link within this message. */
+    public record LinkRegion(int y1, int y2, String url) {}
+    private final List<LinkRegion> linkRegions = new ArrayList<>();
+
     // Bounding box for click detection of reasoning toggle — set during render
     private int toggleX, toggleY, toggleWidth, toggleHeight;
 
@@ -143,6 +147,8 @@ public class ChatMessageWidget {
     public List<String> getLinkUrls() { return linkUrls; }
     /** True if this message contains one or more markdown links. */
     public boolean hasLinks() { return !linkUrls.isEmpty(); }
+    /** Get computed link hit regions (populated during render). */
+    public List<LinkRegion> getLinkRegions() { return linkRegions; }
 
     /** Check if a click at absolute screen coords hits the reasoning toggle for this widget at (widgetX, widgetY). */
     public boolean hitReasoningToggle(double mx, double my, int widgetX, int widgetY, Font font) {
@@ -274,6 +280,11 @@ public class ChatMessageWidget {
         }
         // Main response text
         graphics.drawWordWrap(font, renderedContent, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_SECONDARY);
+
+        // Compute link hit regions for click targeting
+        if (!linkUrls.isEmpty()) {
+            computeLinkRegions(font, innerWidth, PADDING, contentY);
+        }
     }
 
     // ==================== Helpers ====================
@@ -300,5 +311,31 @@ public class ChatMessageWidget {
         graphics.fill(x + width - r, y, x + width, y + r, color);
         graphics.fill(x, y + height - r, x + r, y + height, color);
         graphics.fill(x + width - r, y + height - r, x + width, y + height, color);
+    }
+
+    private void computeLinkRegions(Font font, int maxWidth, int padding, int contentY) {
+        linkRegions.clear();
+        var lines = font.split(renderedContent, maxWidth);
+        int y = contentY;
+        for (var line : lines) {
+            final int lineY = y;
+            line.accept((index, style, codePoint) -> {
+                if (style != null && style.getClickEvent() != null) {
+                    String url = style.getClickEvent().getValue();
+                    boolean found = false;
+                    for (LinkRegion r : linkRegions) {
+                        if (r.url().equals(url) && r.y1() == lineY) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        linkRegions.add(new LinkRegion(lineY, lineY + font.lineHeight, url));
+                    }
+                }
+                return true;
+            });
+            y += font.lineHeight;
+        }
     }
 }

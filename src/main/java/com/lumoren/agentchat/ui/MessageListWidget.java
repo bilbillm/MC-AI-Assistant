@@ -201,9 +201,17 @@ public class MessageListWidget extends AbstractWidget {
                         widget.toggleReasoning();
                         return true;
                     }
-                    // Check if message has clickable links
+                    // Check if click falls on a specific link region
                     if (widget.hasLinks()) {
-                        openLinkFromWidget(widget);
+                        int relY = (int) mouseY - currentY;
+                        for (ChatMessageWidget.LinkRegion r : widget.getLinkRegions()) {
+                            if (relY >= r.y1() && relY <= r.y2()) {
+                                openUrl(r.url());
+                                return true;
+                            }
+                        }
+                        // If no specific link region matched, fall back to the last link
+                        openUrl(widget.getLinkUrls().get(widget.getLinkUrls().size() - 1));
                         return true;
                     }
                     selectedMessageUuid = null;
@@ -233,7 +241,15 @@ public class MessageListWidget extends AbstractWidget {
                     return true;
                 }
                 if (sw.hasLinks()) {
-                    openLinkFromWidget(sw);
+                    int relY = (int) mouseY - currentY;
+                    for (ChatMessageWidget.LinkRegion r : sw.getLinkRegions()) {
+                        if (relY >= r.y1() && relY <= r.y2()) {
+                            openUrl(r.url());
+                            return true;
+                        }
+                    }
+                    // If no specific link region matched, fall back to the last link
+                    openUrl(sw.getLinkUrls().get(sw.getLinkUrls().size() - 1));
                     return true;
                 }
             }
@@ -302,9 +318,7 @@ public class MessageListWidget extends AbstractWidget {
         scrollToBottom();
     }
 
-    private void openLinkFromWidget(ChatMessageWidget widget) {
-        if (!widget.hasLinks()) return;
-        String rawUrl = widget.getLinkUrls().get(widget.getLinkUrls().size() - 1);
+    private void openUrl(String rawUrl) {
         if (rawUrl == null || rawUrl.isBlank()) return;
         try {
             String url = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
