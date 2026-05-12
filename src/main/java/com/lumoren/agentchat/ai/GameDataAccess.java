@@ -246,7 +246,7 @@ public class GameDataAccess {
      * @param itemId 物品注册键
      * @return 物品实例，若不存在则可能返回 {@link net.minecraft.world.item.Items#AIR}
      */
-    static Item lookupItem(ResourceLocation itemId) {
+    public static Item lookupItem(ResourceLocation itemId) {
         return BuiltInRegistries.ITEM.get(itemId);
     }
 

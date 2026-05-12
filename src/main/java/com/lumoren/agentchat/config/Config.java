@@ -12,6 +12,7 @@ public class Config {
     public static final ModConfigSpec.IntValue MAX_TOKENS;
     public static final ModConfigSpec.IntValue MAX_HISTORY;
     public static final ModConfigSpec.IntValue TIMEOUT;
+    public static final ModConfigSpec.IntValue PROJECT_TRACK_INTERVAL;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -41,6 +42,10 @@ public class Config {
         TIMEOUT = builder
                 .comment("HTTP request timeout in seconds (5-120)")
                 .defineInRange("timeout", 30, 5, 120);
+
+        PROJECT_TRACK_INTERVAL = builder
+                .comment("Tick interval for project progress tracking (5-100). Default 20 = 1 second")
+                .defineInRange("projectTrackInterval", 20, 5, 100);
 
         builder.pop();
         SPEC = builder.build();

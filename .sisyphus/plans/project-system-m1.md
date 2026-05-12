@@ -107,16 +107,11 @@
 ### Parallel Execution Waves
 
 ```
-Wave 1 (Start Immediately — data foundation):
-├── [x] Task 1: Project/Task/ItemRequirement 数据模型 [quick]
-├── [ ] Task 2: ProjectManager 持久化层 (TDD) [unspecified-high]
-├── [x] Task 3: Project 系统 I18n keys + 翻译文件 [quick]
-
 Wave 2 (After Wave 1 — AI + detection + JEI):
-├── Task 4: ProjectPlanningService AI 提示词 + 响应解析 [unspecified-high]
-├── Task 5: ProjectProgressTracker tick 监听 + 背包 diff [unspecified-high]
-├── Task 6: Config 扩展 — projectTrackInterval [quick]
-├── Task 12: JEI API 集成 — RecipeTool 重构 [unspecified-high]
+├── [ ] Task 4: ProjectPlanningService AI 提示词 + 响应解析 [unspecified-high]
+├── [ ] Task 5: ProjectProgressTracker tick 监听 + 背包 diff [unspecified-high]
+├── [ ] Task 6: Config 扩展 — projectTrackInterval [quick]
+├── [ ] Task 12: JEI API 集成 — RecipeTool 重构 [unspecified-high]
 
 Wave 3 (After Wave 2 — UI + integration):
 ├── Task 7: ProjectHudOverlay + ProjectHudWidget (NeoForge overlay) [visual-engineering]

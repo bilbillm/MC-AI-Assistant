@@ -20,3 +20,8 @@ mandatory=true
 versionRange="[${minecraft_version},1.22)"
 ordering="NONE"
 side="CLIENT"
+
+[[dependencies.agentchat]]
+modId="jei"
+mandatory=false
+ordering="AFTER"

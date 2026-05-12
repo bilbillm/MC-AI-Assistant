@@ -44,7 +44,15 @@ neoForge {
 
 }
 
+repositories {
+    maven { url = "https://maven.blamejared.com" }
+}
+
 dependencies {
+    // JEI API (compile-only for main, testImplementation for test classpath)
+    compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
+    testImplementation "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
+
     // Test dependencies
     testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
     testImplementation "org.mockito:mockito-core:5.14.2"
