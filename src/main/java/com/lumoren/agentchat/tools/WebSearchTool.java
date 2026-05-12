@@ -30,13 +30,14 @@ public class WebSearchTool implements GameTool {
     private static final String DDG_HTML_URL = "https://html.duckduckgo.com/html/?q=";
     private static final String BING_URL = "https://www.bing.com/search?q=";
 
-    // Patterns for extracting results from DuckDuckGo HTML
-    private static final Pattern RESULT_LINK_PATTERN =
-            Pattern.compile("<a[^>]*class=\"result__a\"[^>]*href=\"([^\"]*)\"[^>]*>(.*?)</a>",
-                    Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
-    private static final Pattern RESULT_SNIPPET_PATTERN =
-            Pattern.compile("<a[^>]*class=\"result__snippet\"[^>]*>(.*?)</a>",
-                    Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
+    // Patterns for extracting results from search HTML
+    // Generic approach: extract all <a href> links and surrounding text
+    private static final Pattern LINK_PATTERN =
+            Pattern.compile("<a[^>]+href=\"(https?://[^\"]+)\"[^>]*>([^<]*(?:<[^/][^>]*>[^<]*</[^>]+>)?[^<]*)</a>",
+                    Pattern.CASE_INSENSITIVE);
+    private static final Pattern TEXT_BLOCK =
+            Pattern.compile("<(?:p|div|span|li)[^>]*>([^<]{20,})</(?:p|div|span|li)>",
+                    Pattern.CASE_INSENSITIVE);
 
     @Override
     public String getName() {
@@ -152,26 +153,50 @@ public class WebSearchTool implements GameTool {
     private List<SearchResult> parseResults(String html) {
         List<SearchResult> results = new ArrayList<>();
 
-        // Find all result links
-        Matcher linkMatcher = RESULT_LINK_PATTERN.matcher(html);
-        List<String[]> links = new ArrayList<>();
-        while (linkMatcher.find()) {
-            String href = stripHtml(linkMatcher.group(1));
-            String title = stripHtml(linkMatcher.group(2));
-            links.add(new String[]{title, href});
+        // Extract all external links with text content
+        Matcher linkMatcher = LINK_PATTERN.matcher(html);
+        while (linkMatcher.find() && results.size() < 8) {
+            String href = linkMatcher.group(1);
+            String text = stripHtml(linkMatcher.group(2));
+            
+            // Skip navigation/internal links and very short text
+            if (href.contains("duckduckgo.com") || href.contains("bing.com") 
+                    || href.contains("microsoft.com/bing") || text.length() < 5) {
+                continue;
+            }
+            
+            // Try to get a snippet from surrounding HTML context
+            int linkEnd = linkMatcher.end();
+            int snippetStart = html.indexOf("<", linkEnd);
+            String snippet = "";
+            if (snippetStart > linkEnd) {
+                String between = html.substring(linkEnd, snippetStart).trim();
+                if (between.length() > 10) {
+                    snippet = stripHtml(between);
+                }
+            }
+            
+            results.add(new SearchResult(text, href, snippet));
         }
 
-        // Find all snippets
-        Matcher snippetMatcher = RESULT_SNIPPET_PATTERN.matcher(html);
-        List<String> snippets = new ArrayList<>();
-        while (snippetMatcher.find()) {
-            snippets.add(stripHtml(snippetMatcher.group(1)));
+        // If no results from links, try extracting text blocks
+        if (results.isEmpty()) {
+            Matcher textMatcher = TEXT_BLOCK.matcher(html);
+            while (textMatcher.find() && results.size() < 5) {
+                String text = stripHtml(textMatcher.group(1));
+                if (text.length() > 30) {
+                    results.add(new SearchResult(text.substring(0, 60) + "...", "", text));
+                }
+            }
         }
 
-        // Pair them up (max 5)
-        int count = Math.min(Math.min(links.size(), snippets.size()), 5);
-        for (int i = 0; i < count; i++) {
-            results.add(new SearchResult(links.get(i)[0], links.get(i)[1], snippets.get(i)));
+        // If still empty, the search engine likely blocked us — return raw text preview
+        if (results.isEmpty()) {
+            String visible = stripHtml(html).trim();
+            if (visible.length() > 50) {
+                results.add(new SearchResult("Search results (text only)", "", 
+                    visible.substring(0, Math.min(300, visible.length())) + "..."));
+            }
         }
 
         return results;

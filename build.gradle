@@ -116,3 +116,13 @@ tasks.named('processResources', ProcessResources) {
         expand(expandProperties)
     }
 }
+
+// Auto-deploy: copy built JAR to Minecraft mods folder
+tasks.register('deployToMods', Copy) {
+    dependsOn build
+    from layout.buildDirectory.file("libs/${mod_id}-${mod_version}.jar")
+    into "D:/MC/.minecraft/versions/1.21.1-NeoForge_21.1.219/mods"
+    doLast {
+        println ">> Deployed ${mod_id}-${mod_version}.jar to mods folder"
+    }
+}

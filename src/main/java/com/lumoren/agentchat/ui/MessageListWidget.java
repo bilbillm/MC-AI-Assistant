@@ -3,6 +3,7 @@ package com.lumoren.agentchat.ui;
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ConversationThread;
 import com.lumoren.agentchat.ui.theme.ChatColors;
+import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -200,6 +201,18 @@ public class MessageListWidget extends AbstractWidget {
                         widget.toggleReasoning();
                         return true;
                     }
+                    // Check if click falls on a specific link region
+                    if (widget.hasLinks()) {
+                        widget.computeLinkPositions(listX, currentY, font, listWidth);
+                        for (ChatMessageWidget.LinkRegion r : widget.getLinkRegions()) {
+                            if (mouseX >= r.x1() && mouseX <= r.x2()
+                                    && mouseY >= r.y1() && mouseY <= r.y2()) {
+                                openUrl(r.url());
+                                return true;
+                            }
+                        }
+                        // Fallback: no specific region matched — don't open anything
+                    }
                     selectedMessageUuid = null;
                     return false;
                 } else {
@@ -225,6 +238,17 @@ public class MessageListWidget extends AbstractWidget {
                 if (sw.hitReasoningToggle(mouseX, mouseY, listX, currentY, font)) {
                     sw.toggleReasoning();
                     return true;
+                }
+                if (sw.hasLinks()) {
+                    sw.computeLinkPositions(listX, currentY, font, listWidth);
+                    for (ChatMessageWidget.LinkRegion r : sw.getLinkRegions()) {
+                        if (mouseX >= r.x1() && mouseX <= r.x2()
+                                && mouseY >= r.y1() && mouseY <= r.y2()) {
+                            openUrl(r.url());
+                            return true;
+                        }
+                    }
+                    // Fallback: no specific region matched — don't open anything
                 }
             }
         }
@@ -290,6 +314,16 @@ public class MessageListWidget extends AbstractWidget {
     public void resetAutoScroll() {
         autoScroll = true;
         scrollToBottom();
+    }
+
+    private void openUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) return;
+        try {
+            String url = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
+            Util.getPlatform().openUri(url);
+        } catch (Exception e) {
+            System.err.println("[AgentChat] Failed to open link: " + e.getMessage());
+        }
     }
 
     private int computeTotalContentHeight(int contentWidth) {

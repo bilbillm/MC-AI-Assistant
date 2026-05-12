@@ -1,0 +1,10 @@
+Full Markdown support, clickable links, resilient web search, debug mode.
+
+## Changes
+- MarkdownRenderer: links, tables, blockquotes, headers, strikethrough, numbered lists, horizontal rules
+- ChatMessageWidget: manual word-wrap rendering with per-pixel link bounding boxes
+- MessageListWidget: X+Y click targeting for multi-link bubbles
+- WebSearchTool: DDG to Bing fallback, generic HTML parser, plain URL detection
+- Emoji: surrogate pair preservation in renderInlineFormatting
+- TestSuite: built-in AI test suite (15 tests)
+- build.gradle: deployToMods gradle task

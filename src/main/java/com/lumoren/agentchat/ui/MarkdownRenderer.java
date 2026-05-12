@@ -1,8 +1,10 @@
 package com.lumoren.agentchat.ui;
 
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.ChatFormatting;
 
 /**
@@ -15,9 +17,16 @@ import net.minecraft.ChatFormatting;
  * <ul>
  *   <li>{@code **bold**} — bold text</li>
  *   <li>{@code *italic*} — italic text</li>
+ *   <li>{@code ~~strikethrough~~} — strikethrough text</li>
  *   <li>{@code `code`} — inline code (gray)</li>
  *   <li>{@code ```code block```} — fenced code block (dark gray)</li>
- *   <li>{@code - item} — bullet list items</li>
+ *   <li>{@code [text](url)} — clickable hyperlinks (blue, underlined)</li>
+ *   <li>{@code - item} / {@code * item} — bullet list items</li>
+ *   <li>{@code 1. item} — numbered list items</li>
+ *   <li>{@code > text} — blockquotes (gray left border)</li>
+ *   <li>{@code # text}, {@code ## text}, {@code ### text} — headers (bold, gold)</li>
+ *   <li>{@code | col1 | col2 |} — table rows (aligned with gray separators)</li>
+ *   <li>{@code ---} / {@code ***} / {@code ___} — horizontal rules</li>
  *   <li>Paragraphs separated by double newlines</li>
  * </ul>
  */
@@ -78,17 +87,37 @@ public final class MarkdownRenderer {
 
             // Normal line processing
             MutableComponent lineComponent;
-            if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+            if (trimmed.startsWith("### ")) {
+                lineComponent = renderHeader(line, 3);
+            } else if (trimmed.startsWith("## ")) {
+                lineComponent = renderHeader(line, 2);
+            } else if (trimmed.startsWith("# ")) {
+                lineComponent = renderHeader(line, 1);
+            } else if (trimmed.startsWith("> ")) {
+                lineComponent = renderBlockquote(line);
+            } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
                 lineComponent = renderBulletLine(line);
+            } else if (trimmed.matches("^\\d+\\.\\s.*")) {
+                lineComponent = renderNumberedLine(line);
+            } else if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+                if (trimmed.contains("---")) {
+                    lineComponent = null;
+                } else {
+                    lineComponent = renderTableRow(line);
+                }
+            } else if (trimmed.matches("^-{3,}$") || trimmed.matches("^\\*{3,}$") || trimmed.matches("^_{3,}$")) {
+                lineComponent = renderHorizontalRule();
             } else {
                 lineComponent = renderInlineFormatting(line);
             }
 
             // Append with paragraph separation
-            if (!result.getSiblings().isEmpty() || result.getString().length() > 0) {
-                result.append(Component.literal("\n"));
+            if (lineComponent != null) {
+                if (!result.getSiblings().isEmpty() || result.getString().length() > 0) {
+                    result.append(Component.literal("\n"));
+                }
+                result.append(lineComponent);
             }
-            result.append(lineComponent);
         }
 
         // Handle unclosed code block at end
@@ -136,6 +165,75 @@ public final class MarkdownRenderer {
     }
 
     /**
+     * Render a numbered list item (e.g., "1. text", "2. text").
+     */
+    private static MutableComponent renderNumberedLine(String line) {
+        int dotSpace = line.indexOf(". ");
+        if (dotSpace == -1) {
+            return renderInlineFormatting(line);
+        }
+        String prefix = line.substring(0, dotSpace + 2); // e.g., "1. "
+        String content = line.substring(dotSpace + 2);
+        MutableComponent result = Component.literal(prefix)
+                .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY));
+        result.append(renderInlineFormatting(content));
+        return result;
+    }
+
+    /**
+     * Render a markdown table row. Cells are split on {@code |} and joined with
+     * gray pipe separators. Blank and dash-only cells are skipped.
+     */
+    private static MutableComponent renderTableRow(String line) {
+        String[] cells = line.split("\\|");
+        MutableComponent row = Component.literal("");
+        for (int i = 0; i < cells.length; i++) {
+            String cell = cells[i].trim();
+            if (cell.isEmpty()) continue;
+            // Skip dash-only cells (separator lines like | --- | --- |)
+            if (cell.matches("^-+$")) continue;
+            if (!row.getSiblings().isEmpty() || row.getString().length() > 0) {
+                row.append(Component.literal(" | ")
+                        .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+            }
+            row.append(Component.literal(cell));
+        }
+        return row;
+    }
+
+    /**
+     * Render a horizontal rule (---, ***, ___).
+     */
+    private static MutableComponent renderHorizontalRule() {
+        return Component.literal("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
+                .withStyle(Style.EMPTY.withColor(ChatFormatting.DARK_GRAY));
+    }
+
+    /**
+     * Render a blockquote line with a gray left border bar (&#124; prefix).
+     */
+    private static MutableComponent renderBlockquote(String line) {
+        String content = line.length() > 2 ? line.substring(2) : "";
+        MutableComponent result = Component.literal("| ")
+                .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY));
+        result.append(renderInlineFormatting(content)
+                .withStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+        return result;
+    }
+
+    /**
+     * Render a header line with bold + gold color.
+     */
+    private static MutableComponent renderHeader(String line, int level) {
+        int contentStart = level + 1; // Skip "# ", "## ", or "### "
+        String content = line.length() > contentStart ? line.substring(contentStart) : "";
+        return Component.literal(content)
+                .withStyle(Style.EMPTY
+                        .withBold(true)
+                        .withColor(ChatFormatting.GOLD));
+    }
+
+    /**
      * Parse inline formatting markers and build a styled Component.
      * Handles **bold**, *italic*, and {@code `code`} inline syntax.
      */
@@ -159,6 +257,28 @@ public final class MarkdownRenderer {
                 }
             }
 
+            // [text](url) — clickable link
+            if (c == '[') {
+                int closeBracket = text.indexOf(']', i + 1);
+                if (closeBracket != -1 && closeBracket + 1 < len
+                        && text.charAt(closeBracket + 1) == '(') {
+                    int closeParen = text.indexOf(')', closeBracket + 2);
+                    if (closeParen != -1) {
+                        String linkText = text.substring(i + 1, closeBracket);
+                        String url = text.substring(closeBracket + 2, closeParen);
+                        MutableComponent link = Component.literal(linkText)
+                                .withStyle(Style.EMPTY
+                                        .withColor(TextColor.fromRgb(0x3B82F6))
+                                        .withUnderlined(true)
+                                        .withClickEvent(new ClickEvent(
+                                                ClickEvent.Action.OPEN_URL, url)));
+                        result.append(link);
+                        i = closeParen + 1;
+                        continue;
+                    }
+                }
+            }
+
             // *italic* — single asterisk (not part of **)
             if (c == '*' && (i + 1 >= len || text.charAt(i + 1) != '*')) {
                 int end = findEndTag(text, i + 1, "*");
@@ -167,6 +287,18 @@ public final class MarkdownRenderer {
                     result.append(Component.literal(inner)
                             .withStyle(Style.EMPTY.withItalic(true)));
                     i = end + 1;
+                    continue;
+                }
+            }
+
+            // ~~strikethrough~~
+            if (c == '~' && i + 1 < len && text.charAt(i + 1) == '~') {
+                int end = findEndTag(text, i + 2, "~~");
+                if (end != -1) {
+                    String inner = text.substring(i + 2, end);
+                    result.append(Component.literal(inner)
+                            .withStyle(Style.EMPTY.withStrikethrough(true)));
+                    i = end + 2;
                     continue;
                 }
             }
@@ -182,6 +314,14 @@ public final class MarkdownRenderer {
                     i = end + 1;
                     continue;
                 }
+            }
+
+            // Handle surrogate pairs (emoji, CJK extension) — must be kept together
+            if (Character.isHighSurrogate(c) && i + 1 < len
+                    && Character.isLowSurrogate(text.charAt(i + 1))) {
+                result.append(Component.literal(text.substring(i, i + 2)));
+                i += 2;
+                continue;
             }
 
             // Regular character
