@@ -4,11 +4,14 @@ import com.lumoren.agentchat.ai.AIChatService;
 import com.lumoren.agentchat.ai.OpenAICompatClient;
 import com.lumoren.agentchat.ai.ToolCallDispatcher;
 import com.lumoren.agentchat.config.ConfigManager;
+import com.lumoren.agentchat.tools.GameInfoTool;
 import com.lumoren.agentchat.tools.InventoryTool;
 import com.lumoren.agentchat.tools.ItemEncyclopediaTool;
+import com.lumoren.agentchat.tools.ModListTool;
 import com.lumoren.agentchat.tools.PositionTool;
 import com.lumoren.agentchat.tools.RecipeTool;
 import com.lumoren.agentchat.tools.ToolRegistry;
+import com.lumoren.agentchat.tools.WebSearchTool;
 import com.lumoren.agentchat.tools.WorldStateTool;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
@@ -88,6 +91,9 @@ public final class ClientServiceManager {
         registry.register(new PositionTool());
         registry.register(new RecipeTool());
         registry.register(new WorldStateTool());
+        registry.register(new WebSearchTool());
+        registry.register(new ModListTool());
+        registry.register(new GameInfoTool());
         return registry;
     }
 }

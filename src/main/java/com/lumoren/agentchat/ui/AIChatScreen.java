@@ -517,6 +517,23 @@ public class AIChatScreen extends Screen {
         }
 
         thread.addMessage(ChatMessage.system("📋 Project \"" + projectName + "\" created with " + tasks.size() + " steps"));
+        for (Task t : tasks) {
+            String line = "☐ " + t.description();
+            if (t.requiredItems() != null && !t.requiredItems().isEmpty()) {
+                StringBuilder items = new StringBuilder("  [需要: ");
+                for (int i = 0; i < t.requiredItems().size(); i++) {
+                    ItemRequirement ir = t.requiredItems().get(i);
+                    if (i > 0) items.append(", ");
+                    String shortName = ir.itemId().contains(":")
+                        ? ir.itemId().substring(ir.itemId().lastIndexOf(':') + 1)
+                        : ir.itemId();
+                    items.append(shortName).append(" x ").append(ir.needed());
+                }
+                items.append("]");
+                line += items.toString();
+            }
+            thread.addMessage(ChatMessage.system(line));
+        }
         pendingTasks = null;
         pendingProjectCreation = false;
         if (messageList != null) {
