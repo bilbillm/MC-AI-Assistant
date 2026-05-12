@@ -2,7 +2,10 @@ package com.lumoren.agentchat.client;
 
 import com.lumoren.agentchat.AgentChat;
 import com.lumoren.agentchat.persistence.ConversationManager;
+import com.lumoren.agentchat.persistence.ProjectManager;
+import com.lumoren.agentchat.config.ConfigManager;
 import com.lumoren.agentchat.ui.AIChatScreen;
+import com.lumoren.agentchat.client.ProjectProgressTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.neoforged.api.distmarker.Dist;
@@ -21,11 +24,23 @@ import java.nio.file.Path;
 public class ClientEventHandler {
 
     private static boolean initialized;
+    private static int tickCounter;
+    private static ProjectProgressTracker tracker;
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         if (ClientModEvents.OPEN_CHAT_KEY.consumeClick()) {
             Minecraft.getInstance().setScreen(new AIChatScreen());
+        }
+
+        if (tickCounter++ >= ConfigManager.getInstance().getProjectTrackInterval()) {
+            tickCounter = 0;
+            ProjectManager pm = ProjectManager.getInstance();
+            if (pm != null && pm.getActiveProject() != null) {
+                if (tracker == null) tracker = new ProjectProgressTracker();
+                tracker.onClientTick(pm.getActiveProject(), Minecraft.getInstance(),
+                        ConfigManager.getInstance().getProjectTrackInterval());
+            }
         }
     }
 
@@ -34,6 +49,7 @@ public class ClientEventHandler {
         if (!initialized && event.getLevel().isClientSide()) {
             Path saveDir = Minecraft.getInstance().gameDirectory.toPath().resolve("agentchat-conversations");
             ConversationManager.initialize(saveDir);
+            ProjectManager.initialize(saveDir);
             initialized = true;
         }
     }
@@ -48,6 +64,7 @@ public class ClientEventHandler {
             if (current instanceof AIChatScreen) {
                 current.onClose();
             }
+            ProjectManager.shutdown();
             ConversationManager.shutdown();
             initialized = false;
         }

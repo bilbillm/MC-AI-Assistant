@@ -18,6 +18,15 @@
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
       "updated_at": "2026-05-12T03:41:00.916Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "ProjectHudOverlay + ProjectHudWidget (NeoForge IGuiOverlay)",
+      "session_id": "ses_1e5b8425effe3tWDbLDWToYuE0",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-05-12T03:56:52.522Z"
     }
   }
 }

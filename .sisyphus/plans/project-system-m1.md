@@ -108,17 +108,17 @@
 
 ```
 Wave 2 (After Wave 1 — AI + detection + JEI):
-├── [ ] Task 4: ProjectPlanningService AI 提示词 + 响应解析 [unspecified-high]
-├── [ ] Task 5: ProjectProgressTracker tick 监听 + 背包 diff [unspecified-high]
-├── [ ] Task 6: Config 扩展 — projectTrackInterval [quick]
-├── [ ] Task 12: JEI API 集成 — RecipeTool 重构 [unspecified-high]
+├── [x] Task 4: ProjectPlanningService AI 提示词 + 响应解析 [unspecified-high]
+├── [x] Task 5: ProjectProgressTracker tick 监听 + 背包 diff [unspecified-high]
+├── [x] Task 6: Config 扩展 — projectTrackInterval [quick]
+├── [x] Task 12: JEI API 集成 — RecipeTool 重构 [unspecified-high]
 
 Wave 3 (After Wave 2 — UI + integration):
-├── Task 7: ProjectHudOverlay + ProjectHudWidget (NeoForge overlay) [visual-engineering]
-├── Task 8: ClientEventHandler — tick hook 注册 [quick]
-├── Task 9: AIChatService — 系统提示词动态注入 [unspecified-high]
-├── Task 10: AIChatScreen — 项目创建对话流 + 完成庆祝 [unspecified-high]
-├── Task 11: ProjectManager 归档 + 重激活逻辑 [quick]
+├── [ ] Task 7: ProjectHudOverlay + ProjectHudWidget (NeoForge overlay) [visual-engineering]
+├── [ ] Task 8: ClientEventHandler — tick hook 注册 [quick]
+├── [ ] Task 9: AIChatService — 系统提示词动态注入 [unspecified-high]
+├── [ ] Task 10: AIChatScreen — 项目创建对话流 + 完成庆祝 [unspecified-high]
+├── [x] Task 11: ProjectManager 归档 + 重激活逻辑 (done in Task 2) [quick]
 
 Wave FINAL:
 ├── Task F1: Plan compliance audit (oracle)
@@ -131,7 +131,7 @@ Wave FINAL:
 
 ## TODOs
 
-- [ ] 12. JEI API 集成 — RecipeTool 重构
+- [x] 12. JEI API 集成 — RecipeTool 重构
 
   **What to do**:
   - 创建 `client/JeiBridge.java`: implements `IModPlugin`

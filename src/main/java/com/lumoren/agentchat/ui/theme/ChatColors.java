@@ -41,4 +41,16 @@ public final class ChatColors {
     // ── Status / Thinking ──
     public static final int STATUS_TEXT      = 0xFF_94A3B8;  // "AI is thinking..."
     public static final int THREAD_ITEM_HOVER = 0xFF_334155;
+
+    // ── Project HUD ──
+    /** HUD widget background */
+    public static final int HUD_BG           = 0xCC_1E293B;
+    /** HUD widget border */
+    public static final int HUD_BORDER       = 0xCC_334155;
+    /** Task completed (green) */
+    public static final int TASK_DONE        = 0xFF_22C55E;
+    /** Task blocked (red) */
+    public static final int TASK_BLOCKED     = 0xFF_EF4444;
+    /** Task active / current step (blue) */
+    public static final int TASK_ACTIVE      = 0xFF_3B82F6;
 }

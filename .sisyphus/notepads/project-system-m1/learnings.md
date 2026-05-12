@@ -167,3 +167,130 @@
 - `detectDeathItemLoss`: significant drop → true, small drop → false, no change → false, empty previous → false, increase → false
 - Death cooldown: prevents duplicate triggers (recent timestamp), allows re-trigger after cooldown expiry
 - `markBlockedTasks`: required item missing → BLOCKED, items present → unchanged, skips already DONE, IN_PROGRESS → BLOCKED
+
+## Task 9: AIChatService — Project Context Injection — 2026-05-12
+
+### Implementation
+- Minimal change: 5 lines added to `sendMessage()` in `AIChatService.java`
+- Project context injected between `SYSTEM_PROMPT` and conversation history
+- Null-safe: checks `ProjectManager.getInstance() != null && .getActiveProject() != null`
+- Only one import needed: `ProjectManager` (api package). `ProjectPlanningService` is same package, no import.
+- SYSTEM_PROMPT remains untouched `static final` — project context is additional, separate system message
+
+### Key Design Points
+- Injected in `sendMessage()` only, NOT in `runConversationLoop()` — tool-calling loop doesn't get project context repeatedly
+- Not persisted in conversation history — added per-invocation, not part of stored thread
+- `buildProjectContextMessage()` already handles null project internally (returns "No active project."), but we guard upstream anyway
+- No method signature changes — fully backward compatible
+
+### Build
+- `./gradlew clean compileJava --no-daemon` → BUILD SUCCESSFUL
+- 4 pre-existing deprecation warnings (ClientModEvents, AgentChatCommand) — zero new warnings
+
+## Task 7: ProjectHudOverlay + ProjectHudWidget — 2026-05-12
+
+### Key Discovery: NeoForge 21.1 removed RegisterGuiOverlaysEvent
+- In NeoForge 21.1.228, `RegisterGuiOverlaysEvent` and `IGuiOverlay` were **completely removed**.
+- Replaced by `RenderGuiEvent.Post` (fires after all vanilla GUI is rendered) on the **FORGE** (GAME) bus.
+- `EventBusSubscriber.bus()` is deprecated — use `@EventBusSubscriber(modid = ..., value = Dist.CLIENT)` without `bus` parameter for FORGE bus events. MOD bus events should be registered via `modEventBus.addListener()` in the `@Mod` constructor, or use the deprecated `bus = Bus.MOD`.
+
+### Event API Changes in NeoForge 21.1.228
+- **`RenderGuiEvent`**: `getGuiGraphics()`, `getPartialTick()` returns `DeltaTracker` (not float!). Use `deltaTracker.getGameTimeDeltaPartialTick(mc.isPaused())` to get float partialTick.
+- **`InputEvent.MouseScrollingEvent`**: Has `getMouseX()`, `getMouseY()` (window coordinates), `getScrollDeltaX()`, `getScrollDeltaY()`. Cancellable via `setCanceled(true)`.
+- No more `IGuiOverlay` or `RegisterGuiOverlaysEvent` — all HUD rendering via `RenderGuiEvent.Post` on FORGE bus.
+
+### HUD Interaction Without Screen
+- `AbstractWidget.mouseClicked()`, `mouseDragged()`, `mouseReleased()` are NOT automatically called outside a `Screen`.
+- Solution: Use GLFW state queries in the render callback:
+  ```java
+  long handle = mc.getWindow().getWindow();
+  boolean leftDown = GLFW.glfwGetMouseButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+  ```
+- Track `wasLeftDown` across frames to detect press/drag/release transitions.
+- Scroll events forwarded via `InputEvent.MouseScrollingEvent` on FORGE bus.
+
+### Mouse Coordinate Scaling
+- `mc.mouseHandler.xpos()` returns raw screen pixels. Convert to scaled GUI coords:
+  ```java
+  double guiScale = mc.getWindow().getGuiScale();
+  double mX = mc.mouseHandler.xpos() / guiScale;
+  ```
+- `InputEvent.MouseScrollingEvent.getMouseX()` also returns raw pixels — same scaling needed.
+
+### Widget Pipeline (AbstractWidget outside Screen)
+- `renderWidget()` is called directly from the overlay — still the correct rendering method.
+- `graphics.drawString(font, ...)` inside `renderWidget()` is the correct pipeline for NeoForge 1.21.1.
+- `graphics.drawString(font, Component, x, y, color)` — the `color` parameter is a fallback for unstyled text.
+
+### Component.withStyle() requires MutableComponent
+- `Component.literal()` returns `MutableComponent`, but if assigned to `Component` variable, `withStyle(Style)` won't compile (it's on `MutableComponent` only).
+- Fix: Use `MutableComponent` variable type, call `withStyle()` without re-assignment (it mutates in-place):
+  ```java
+  MutableComponent line = Component.literal("text");
+  line.withStyle(Style.EMPTY.withColor(...)); // mutates in-place
+  ```
+
+### TextColor.fromRgb()
+- Works in Minecraft 1.21.1: `TextColor.fromRgb(0xFF_22C55E)` returns `TextColor`.
+- `Style.EMPTY.withColor(TextColor)` returns a new Style.
+
+### GLFW Window Handle
+- `mc.getWindow().getWindow()` returns `long` (the GLFW window pointer).
+- Works with `GLFW.glfwGetMouseButton(long window, int button)`.
+
+### Position Persistence
+- Local static fields (`persistentOffsetX`, `persistentOffsetY`) sufficient for M1 MVP.
+- Exposed via `getStoredOffsetX()/getStoredOffsetY()` and `setStoredOffset(x, y)` for future persistence.
+
+## Task: AIChatScreen Project Creation Flow — 2026-05-12
+
+### New Fields Added
+- `projectJustCompleted` (boolean) — guards against duplicate completion celebrations
+- `pendingProjectCreation` (boolean) — true when user expressed project intent, waiting for AI task chain response
+- `pendingProjectName` (String) — the cleaned goal name extracted from user message
+- `pendingTasks` (List<Task>) — parsed tasks awaiting confirmation
+
+### sendMessage() Flow Changes
+Order of operations BEFORE sending=true:
+1. `handleEditCommand(text)` — local edit commands (delete step, rename step, add step)
+2. `handleConfirmation(text)` — "确认"/"confirm" creates project from pending tasks
+3. Clear pending tasks if user types anything else (ignores confirmation)
+4. THEN `sending = true` and normal flow
+
+### Intent Detection
+- `checkProjectIntent()` called in sendMessage() after sending=true, before `thread.addMessage(user)`
+- Detects keywords: "我要做", "我想做", "I want to make", "I want to build", "帮我规划"
+- On match: injects system message asking AI for JSON task chain, sets `pendingProjectCreation = true`, extracts clean goal
+
+### Project Creation Confirmation Flow
+1. `onStreamUpdate()` checks `streamer.isCompleted() && pendingProjectCreation` → calls `tryParseProjectFromLastResponse()`
+2. `tryParseProjectFromLastResponse()` extracts JSON from markdown code blocks, calls `ProjectPlanningService.parseTaskChain()`
+3. If tasks parsed successfully → stores as `pendingTasks`, adds confirmation system message to thread
+4. User replies "确认"/"confirm"/"yes"/"是" → `handleConfirmation()` creates `Project(pendingProjectName)`, calls `setTasks(pendingTasks)`, saves via `ProjectManager.saveProject()`
+
+### Manual Task Editing Commands
+- `删除第N步` → removes task at index N-1, calls `project.setTasks()`, `pm.saveProject()`
+- `把第N步改成XXX` → creates new Task record (same id, new description), replaces in list, saves
+- `添加步骤: XXX` or `添加步骤：XXX` → `Task.of(desc, TaskType.PLAN, List.of())`, `project.addTask()`, saves
+- All commands use regex matching and return true to prevent sending to AI
+- Guard: returns false if no active project
+
+### Completion Detection
+- `checkProjectCompletion()` called in `onStreamUpdate()` every update
+- Checks `project.getTasks().stream().allMatch(t -> t.status() == TaskStatus.DONE)`
+- On all done: sets `projectJustCompleted = true`, archives project, adds celebration message using I18nKeys.PROJECT_COMPLETE
+- Guard `projectJustCompleted` prevents duplicate triggers (reset when new project created via handleConfirmation)
+
+### Task Record Immutability
+- Since `Task` is a Java record, modifications create new Task instances:
+  ```java
+  new Task(oldTask.id(), newDesc, oldTask.type(), oldTask.status(), oldTask.requiredItems(), oldTask.note())
+  ```
+
+### Pre-existing Build Issue
+- Two untracked files (ProjectHudOverlay.java, ProjectHudWidget.java) have compile errors on NeoForge 21.1.219:
+  - `RegisterGuiOverlaysEvent` not found (API removed in 21.1.228, not available in 21.1.219 either)
+  - `withStyle(Style)` not found on `Component` (needs `MutableComponent`)
+  - `getScrollDelta()` not found (replaced by `getScrollDeltaX()`/`getScrollDeltaY()`)
+- These are from a different workstream — temporarily moved to `.tmp-bak/` for clean build verification, then restored
+- AIChatScreen.java changes compile cleanly with zero errors, zero new warnings

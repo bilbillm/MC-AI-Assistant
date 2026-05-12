@@ -2,6 +2,7 @@ package com.lumoren.agentchat.ai;
 
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ToolDefinition;
+import com.lumoren.agentchat.persistence.ProjectManager;
 import com.lumoren.agentchat.tools.ToolRegistry;
 import net.minecraft.client.Minecraft;
 
@@ -75,6 +76,13 @@ public class AIChatService {
         cancelled = false;
         List<ChatMessage> conversation = new ArrayList<>();
         conversation.add(ChatMessage.system(SYSTEM_PROMPT));
+
+        // Inject project context if active project exists
+        ProjectManager pm = ProjectManager.getInstance();
+        if (pm != null && pm.getActiveProject() != null) {
+            conversation.add(ProjectPlanningService.buildProjectContextMessage(pm.getActiveProject()));
+        }
+
         conversation.addAll(history);
         conversation.add(ChatMessage.user(userInput));
 

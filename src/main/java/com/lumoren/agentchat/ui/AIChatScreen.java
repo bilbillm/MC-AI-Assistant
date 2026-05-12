@@ -1,12 +1,19 @@
 package com.lumoren.agentchat.ui;
 
 import com.lumoren.agentchat.ai.AIChatService;
+import com.lumoren.agentchat.ai.ProjectPlanningService;
 import com.lumoren.agentchat.client.ClientServiceManager;
 import com.lumoren.agentchat.i18n.I18nHelper;
 import com.lumoren.agentchat.i18n.I18nKeys;
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ConversationThread;
+import com.lumoren.agentchat.model.ItemRequirement;
+import com.lumoren.agentchat.model.Project;
+import com.lumoren.agentchat.model.Task;
+import com.lumoren.agentchat.model.TaskStatus;
+import com.lumoren.agentchat.model.TaskType;
 import com.lumoren.agentchat.persistence.ConversationManager;
+import com.lumoren.agentchat.persistence.ProjectManager;
 import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -15,8 +22,11 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * AI chat screen — Create-inspired layout.
@@ -52,6 +62,12 @@ public class AIChatScreen extends Screen {
     private String selectedMessageUuid; // right-click selected message for recall/edit
     private String pendingEditMessageUuid; // UUID of message being deep-edited
     private java.util.Set<String> expandedReasonings = new java.util.HashSet<>(); // persist across rebuildLayout
+
+    // ==================== Project system ====================
+    private boolean projectJustCompleted;
+    private boolean pendingProjectCreation;
+    private String pendingProjectName;
+    private List<Task> pendingTasks;
 
     public AIChatScreen() {
         super(I18nHelper.translate(I18nKeys.TITLE));
@@ -258,12 +274,21 @@ public class AIChatScreen extends Screen {
     private void onInputChanged(String text) { sendButton.active = !text.isBlank(); }
     private void onStreamUpdate() {
         if (messageList != null) messageList.onMessageAdded();
-        
+
         // Reset sending guard when stream completes or errors
         if (streamer.isCompleted() || streamer.hasError()) {
             sending = false;
         }
-        
+
+        // Check if we need to parse project creation response from AI
+        if (streamer.isCompleted() && !streamer.hasError() && pendingProjectCreation) {
+            pendingProjectCreation = false;
+            tryParseProjectFromLastResponse();
+        }
+
+        // Check project completion (all tasks DONE → archive + celebrate)
+        checkProjectCompletion();
+
         // Auto-rename after first AI response: ask AI for a concise title
         if (firstUserMessage != null && streamer.isCompleted() && !streamer.hasError() && !autoRenamePending) {
             String msg = firstUserMessage;
@@ -302,6 +327,23 @@ public class AIChatScreen extends Screen {
     private void sendMessage(String text) {
         // Guard against concurrent message sends (rapid Enter presses)
         if (sending) return;
+
+        // Handle project edit commands locally (don't send to AI)
+        if (handleEditCommand(text)) {
+            return;
+        }
+
+        // Handle project creation confirmation locally
+        if (handleConfirmation(text)) {
+            return;
+        }
+
+        // If pending tasks exist but user typed something else, clear them
+        if (pendingTasks != null) {
+            pendingTasks = null;
+            pendingProjectName = null;
+        }
+
         sending = true;
 
         // Deep edit pre-amble: truncate at the pending edit message, abort streaming
@@ -316,6 +358,9 @@ public class AIChatScreen extends Screen {
             }
             pendingEditMessageUuid = null;
         }
+
+        // Check project intent (may inject system message into thread)
+        checkProjectIntent(text);
 
         // Track first message for auto-rename
         if (thread.messageCount() == 0) {
@@ -373,5 +418,229 @@ public class AIChatScreen extends Screen {
         inputField.setFocused(true);
         sendButton.active = true;
         selectedMessageUuid = null;
+    }
+
+    // ==================== Project System ====================
+
+    /**
+     * Detect project creation intent from user message.
+     * If a keyword is detected, injects a system message asking the AI to
+     * produce a JSON task chain and sets {@link #pendingProjectCreation}.
+     */
+    private void checkProjectIntent(String userMessage) {
+        if (userMessage.matches(".*(我要做|我想做|I want to make|I want to build|帮我规划).*")) {
+            pendingProjectCreation = true;
+            String cleanGoal = userMessage.replaceAll(
+                "(我要做|我想做|I want to make|I want to build|帮我规划)", "").strip();
+            if (cleanGoal.isEmpty()) {
+                cleanGoal = "New Project";
+            }
+            pendingProjectName = cleanGoal;
+
+            // Inject system prompt asking AI to produce a JSON task chain
+            thread.addMessage(ChatMessage.system(
+                "The player wants to accomplish: \"" + cleanGoal + "\". " +
+                "Break this down into a structured JSON task chain with 3-8 steps. " +
+                "Return ONLY valid JSON in this format: " +
+                "{\"tasks\": [{\"description\": \"...\", " +
+                "\"type\": \"CRAFT|GATHER|GO_TO|USE|KILL|PLAN\", " +
+                "\"items\": [{\"itemId\": \"minecraft:xxx\", \"count\": N}]}]}"
+            ));
+        }
+    }
+
+    /**
+     * Check if the active project has all tasks DONE.
+     * If so, archives the project and sends a celebration message.
+     */
+    private void checkProjectCompletion() {
+        ProjectManager pm = ProjectManager.getInstance();
+        if (pm == null || pm.getActiveProject() == null) {
+            return;
+        }
+
+        Project project = pm.getActiveProject();
+        boolean allDone = project.getTasks().stream()
+            .allMatch(t -> t.status() == TaskStatus.DONE);
+
+        if (allDone && !projectJustCompleted) {
+            projectJustCompleted = true;
+            String projectName = project.getName();
+            pm.archiveCurrentProject();
+            String msg = I18nHelper.translateToString(I18nKeys.PROJECT_COMPLETE, projectName);
+            thread.addMessage(ChatMessage.system(msg));
+            if (messageList != null) {
+                messageList.onMessageAdded();
+            }
+        }
+    }
+
+    /**
+     * Parse the last AI assistant response for a JSON task chain.
+     * If found, stores tasks as pending and posts a confirmation message.
+     */
+    private void tryParseProjectFromLastResponse() {
+        String lastAiResponse = getLastAiResponse();
+        if (lastAiResponse == null || lastAiResponse.isBlank()) {
+            return;
+        }
+
+        // Extract JSON from possible markdown code blocks
+        String jsonStr = extractJsonFromMarkdown(lastAiResponse);
+
+        List<Task> tasks = ProjectPlanningService.parseTaskChain(jsonStr);
+        if (tasks.isEmpty()) {
+            return;
+        }
+
+        pendingTasks = tasks;
+
+        // Add confirmation message to chat
+        String confirmMsg = I18nHelper.translateToString(I18nKeys.PROJECT_CREATE_CONFIRM)
+            + " (reply \"确认\" or \"confirm\" to create this project)";
+        thread.addMessage(ChatMessage.system(confirmMsg));
+        if (messageList != null) {
+            messageList.onMessageAdded();
+        }
+    }
+
+    /** @return the content of the last assistant message in the thread, or null */
+    private String getLastAiResponse() {
+        List<ChatMessage> messages = thread.getMessages();
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if ("assistant".equals(messages.get(i).role())) {
+                return messages.get(i).content();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extract JSON string from markdown code blocks (```json ... ```).
+     * If no code block found, returns the original text for direct parsing.
+     */
+    private String extractJsonFromMarkdown(String text) {
+        Pattern p = Pattern.compile("```(?:json)?\\s*\\n?([\\s\\S]*?)\\n?```");
+        Matcher m = p.matcher(text);
+        if (m.find()) {
+            return m.group(1).strip();
+        }
+        return text;
+    }
+
+    /**
+     * Handle manual task editing commands.
+     * <ul>
+     *   <li>"删除第N步" — remove task at index N-1</li>
+     *   <li>"把第N步改成..." — update task description at index N-1</li>
+     *   <li>"添加步骤: ..." — add a new task</li>
+     * </ul>
+     *
+     * @return true if the text was handled as an edit command
+     */
+    private boolean handleEditCommand(String text) {
+        ProjectManager pm = ProjectManager.getInstance();
+        if (pm == null || pm.getActiveProject() == null) {
+            return false;
+        }
+
+        Project project = pm.getActiveProject();
+
+        // Match "删除第N步"
+        Matcher m = Pattern.compile("删除第(\\d+)步").matcher(text);
+        if (m.matches()) {
+            int stepNum = Integer.parseInt(m.group(1));
+            int index = stepNum - 1;
+            List<Task> tasks = new ArrayList<>(project.getTasks());
+            if (index >= 0 && index < tasks.size()) {
+                Task removed = tasks.remove(index);
+                project.setTasks(tasks);
+                pm.saveProject(project);
+                String msg = I18nHelper.translateToString(I18nKeys.PROJECT_TASK_REMOVED, removed.description());
+                thread.addMessage(ChatMessage.system(msg));
+                refreshProjectUI();
+            }
+            return true;
+        }
+
+        // Match "把第N步改成XXX"
+        m = Pattern.compile("把第(\\d+)步改成(.+)").matcher(text);
+        if (m.matches()) {
+            int stepNum = Integer.parseInt(m.group(1));
+            String newDesc = m.group(2).strip();
+            int index = stepNum - 1;
+            List<Task> tasks = new ArrayList<>(project.getTasks());
+            if (index >= 0 && index < tasks.size()) {
+                Task oldTask = tasks.get(index);
+                Task newTask = new Task(oldTask.id(), newDesc, oldTask.type(),
+                    oldTask.status(), oldTask.requiredItems(), oldTask.note());
+                tasks.set(index, newTask);
+                project.setTasks(tasks);
+                pm.saveProject(project);
+                String msg = I18nHelper.translateToString(I18nKeys.PROJECT_TASK_ADDED, newDesc);
+                thread.addMessage(ChatMessage.system(msg));
+                refreshProjectUI();
+            }
+            return true;
+        }
+
+        // Match "添加步骤: XXX" or "添加步骤：XXX"
+        m = Pattern.compile("添加步骤[：:](.+)").matcher(text);
+        if (m.matches()) {
+            String desc = m.group(1).strip();
+            Task newTask = Task.of(desc, TaskType.PLAN, List.of());
+            project.addTask(newTask);
+            pm.saveProject(project);
+            String msg = I18nHelper.translateToString(I18nKeys.PROJECT_TASK_ADDED, desc);
+            thread.addMessage(ChatMessage.system(msg));
+            refreshProjectUI();
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Handle project creation confirmation ("确认", "confirm").
+     * Creates the project from pending tasks and resets state.
+     *
+     * @return true if the text was handled as confirmation
+     */
+    private boolean handleConfirmation(String text) {
+        if (pendingTasks == null || pendingTasks.isEmpty()) {
+            return false;
+        }
+
+        String t = text.strip().toLowerCase();
+        if (!t.equals("确认") && !t.equals("confirm") && !t.equals("yes") && !t.equals("是")) {
+            return false;
+        }
+
+        // Create project from pending tasks
+        String projectName = pendingProjectName != null ? pendingProjectName : "Project";
+        Project project = new Project(projectName);
+        project.setTasks(new ArrayList<>(pendingTasks));
+
+        ProjectManager pm = ProjectManager.getInstance();
+        if (pm != null) {
+            pm.saveProject(project);
+            // Reset completion guard since we have a fresh project
+            projectJustCompleted = false;
+        }
+
+        thread.addMessage(ChatMessage.system(
+            "📋 Project \"" + projectName + "\" created with " + pendingTasks.size() + " steps"));
+
+        pendingTasks = null;
+        pendingProjectName = null;
+        refreshProjectUI();
+        return true;
+    }
+
+    /** Refresh UI after project state changes. */
+    private void refreshProjectUI() {
+        if (messageList != null) {
+            messageList.onMessageAdded();
+        }
     }
 }
