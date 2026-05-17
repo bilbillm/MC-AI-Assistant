@@ -1,6 +1,7 @@
 package com.lumoren.agentchat.client;
 
 import com.lumoren.agentchat.AgentChat;
+import com.lumoren.agentchat.ai.SessionLogger;
 import com.lumoren.agentchat.model.Project;
 import com.lumoren.agentchat.model.TaskStatus;
 import com.lumoren.agentchat.persistence.ConversationManager;
@@ -67,9 +68,15 @@ public class ClientEventHandler {
     @SubscribeEvent
     public static void onLevelLoad(LevelEvent.Load event) {
         if (!initialized && event.getLevel().isClientSide()) {
-            Path saveDir = Minecraft.getInstance().gameDirectory.toPath().resolve("agentchat-conversations");
+            // Get the current world's save directory, fall back to game directory for safety
+            var server = Minecraft.getInstance().getSingleplayerServer();
+            Path worldDir = server != null
+                ? server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                : Minecraft.getInstance().gameDirectory.toPath();
+            Path saveDir = worldDir.resolve("agentchat-conversations");
             ConversationManager.initialize(saveDir);
             ProjectManager.initialize(saveDir);
+            SessionLogger.init(saveDir);
             initialized = true;
         }
     }
@@ -86,6 +93,7 @@ public class ClientEventHandler {
             }
             ProjectManager.shutdown();
             ConversationManager.shutdown();
+            SessionLogger.closeAll();
             initialized = false;
         }
     }

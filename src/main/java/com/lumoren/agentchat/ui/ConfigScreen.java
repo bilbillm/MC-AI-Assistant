@@ -8,13 +8,10 @@ import com.lumoren.agentchat.i18n.I18nKeys;
 import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-
-import java.util.function.Consumer;
 
 /**
  * AI 助手图形配置界面。
@@ -36,10 +33,10 @@ public class ConfigScreen extends Screen {
     private EditBox apiKeyField;
     private EditBox baseUrlField;
     private EditBox modelField;
-    private ConfigSlider temperatureSlider;
+    private EditBox temperatureField;
     private EditBox maxTokensField;
 
-    private double tempValue;
+    private int maxTokensValue; // tracked via responder to avoid stale EditBox value
 
     private String savedApiKey; // original key for change detection
 
@@ -53,7 +50,6 @@ public class ConfigScreen extends Screen {
         super.init();
 
         ConfigManager cfg = ConfigManager.getInstance();
-        this.tempValue = cfg.getTemperature();
 
         // Center the form horizontally. label+gap+field must fit screen.
         // Find widest label to compute total width.
@@ -101,10 +97,12 @@ public class ConfigScreen extends Screen {
 
         // Temperature
         addLabel(I18nKeys.CONFIG_TEMPERATURE, formX, y);
-        temperatureSlider = new ConfigSlider(fieldX, y, FIELD_WIDTH, BUTTON_HEIGHT,
-                I18nHelper.translateToString(I18nKeys.CONFIG_TEMPERATURE), "",
-                0.0, 2.0, tempValue, 1, v -> tempValue = v);
-        addRenderableWidget(temperatureSlider);
+        temperatureField = new EditBox(font, fieldX, y, FIELD_WIDTH, BUTTON_HEIGHT, Component.empty());
+        temperatureField.setMaxLength(5);
+        temperatureField.setFilter(s -> s.matches("[0-9]*\\.?[0-9]*"));
+        temperatureField.setValue(String.format("%.1f", cfg.getTemperature()));
+        temperatureField.setHint(Component.literal("0.0-2.0"));
+        addRenderableWidget(temperatureField);
         y += ROW_HEIGHT;
 
         // Max Tokens
@@ -114,6 +112,12 @@ public class ConfigScreen extends Screen {
         maxTokensField.setFilter(s -> s.matches("\\d*"));
         maxTokensField.setValue(String.valueOf(cfg.getMaxTokens()));
         maxTokensField.setHint(I18nHelper.translate(I18nKeys.CONFIG_HINT_MAX_TOKENS));
+        // Track value via responder to avoid stale getValue() at save time
+        this.maxTokensValue = cfg.getMaxTokens();
+        maxTokensField.setResponder(s -> {
+            try { maxTokensValue = s.isEmpty() ? 0 : Integer.parseInt(s); }
+            catch (NumberFormatException ignored) { maxTokensValue = 0; }
+        });
         addRenderableWidget(maxTokensField);
         y += ROW_HEIGHT + 10;
 
@@ -165,16 +169,22 @@ public class ConfigScreen extends Screen {
             Config.MODEL.set(model);
         }
 
-        Config.TEMPERATURE.set(tempValue);
+        String tempInput = temperatureField.getValue().trim();
+        if (!tempInput.isEmpty()) {
+            try {
+                double val = Double.parseDouble(tempInput);
+                if (val >= 0.0 && val <= 2.0) {
+                    Config.TEMPERATURE.set(val);
+                }
+            } catch (NumberFormatException ignored) {}
+        }
 
         String maxTokensInput = maxTokensField.getValue().trim();
-        if (!maxTokensInput.isEmpty()) {
-            try {
-                int maxTokens = Integer.parseInt(maxTokensInput);
-                if (maxTokens >= 100 && maxTokens <= 4096) {
-                    Config.MAX_TOKENS.set(maxTokens);
-                }
-            } catch (NumberFormatException ignored) {
+        if (!maxTokensInput.isEmpty() || maxTokensValue > 0) {
+            int maxTokens = maxTokensValue > 0 ? maxTokensValue
+                    : Integer.parseInt(maxTokensInput);
+            if (maxTokens >= 100 && maxTokens <= 4096) {
+                Config.MAX_TOKENS.set(Integer.valueOf(maxTokens));
             }
         }
 
@@ -185,8 +195,7 @@ public class ConfigScreen extends Screen {
     }
 
     private void onSave(Button button) {
-        doSave();
-        onClose();
+        onClose(); // onClose() handles save + close
     }
 
     private void onCancel(Button button) {
@@ -195,7 +204,7 @@ public class ConfigScreen extends Screen {
 
     @Override
     public void onClose() {
-        doSave(); // auto-save on close (ESC / Cancel)
+        doSave(); // auto-save on any close (Save, Cancel, ESC)
         Minecraft.getInstance().setScreen(parent);
     }
 
@@ -212,47 +221,5 @@ public class ConfigScreen extends Screen {
         if (key == null || key.isBlank()) return "";
         int maskLen = Math.max(0, key.length() - 4);
         return "*".repeat(maskLen) + (maskLen >= key.length() ? "" : key.substring(maskLen));
-    }
-
-    /**
-     * 配置滑块，显示"标签: 值后缀"格式。
-     */
-    private static class ConfigSlider extends AbstractSliderButton {
-
-        private final String labelPrefix;
-        private final String suffix;
-        private final double min;
-        private final double max;
-        private final int decimalPlaces;
-        private final Consumer<Double> onChange;
-
-        ConfigSlider(int x, int y, int width, int height, String labelPrefix, String suffix,
-                     double min, double max, double current, int decimalPlaces,
-                     Consumer<Double> onChange) {
-            super(x, y, width, height, Component.empty(), (current - min) / (max - min));
-            this.labelPrefix = labelPrefix;
-            this.suffix = suffix;
-            this.min = min;
-            this.max = max;
-            this.decimalPlaces = decimalPlaces;
-            this.onChange = onChange;
-            updateMessage();
-        }
-
-        @Override
-        protected void updateMessage() {
-            double val = min + this.value * (max - min);
-            String format = decimalPlaces > 0 ? "%." + decimalPlaces + "f" : "%.0f";
-            setMessage(Component.literal(labelPrefix + ": " + String.format(format, val) + suffix));
-        }
-
-        @Override
-        protected void applyValue() {
-            double val = min + this.value * (max - min);
-            if (decimalPlaces == 0) {
-                val = Math.round(val);
-            }
-            onChange.accept(val);
-        }
     }
 }

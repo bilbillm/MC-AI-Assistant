@@ -117,6 +117,16 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
     }
 
     @Override
+    public void onAssistantMessage(String text) {
+        if (!streaming) return;
+        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            if (!streaming) return;
+            thread.addMessage(ChatMessage.assistant(text));
+            notifyUpdate();
+        });
+    }
+
+    @Override
     public void onError(String error) {
         if (!streaming) return; // aborted — skip
         this.errorText = error;

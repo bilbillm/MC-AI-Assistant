@@ -6,12 +6,15 @@ import com.lumoren.agentchat.ai.ToolCallDispatcher;
 import com.lumoren.agentchat.config.ConfigManager;
 import com.lumoren.agentchat.tools.GameInfoTool;
 import com.lumoren.agentchat.tools.InventoryTool;
+import com.lumoren.agentchat.tools.MaterialCalculatorTool;
 import com.lumoren.agentchat.tools.ItemEncyclopediaTool;
 import com.lumoren.agentchat.tools.ModListTool;
 import com.lumoren.agentchat.tools.PositionTool;
 import com.lumoren.agentchat.tools.ProjectTool;
+import com.lumoren.agentchat.tools.ReadWebpageTool;
 import com.lumoren.agentchat.tools.RecipeTool;
 import com.lumoren.agentchat.tools.ToolRegistry;
+import com.lumoren.agentchat.tools.UsageTool;
 import com.lumoren.agentchat.tools.WebSearchTool;
 import com.lumoren.agentchat.tools.WorldStateTool;
 import org.slf4j.Logger;
@@ -91,11 +94,14 @@ public final class ClientServiceManager {
         registry.register(new ItemEncyclopediaTool());
         registry.register(new PositionTool());
         registry.register(new RecipeTool());
+        registry.register(new UsageTool());
         registry.register(new WorldStateTool());
         registry.register(new WebSearchTool());
         registry.register(new ModListTool());
         registry.register(new GameInfoTool());
         registry.register(new ProjectTool());
+        registry.register(new ReadWebpageTool());
+        registry.register(new MaterialCalculatorTool());
         return registry;
     }
 }

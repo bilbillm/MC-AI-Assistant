@@ -9,7 +9,7 @@ public class ConfigManager {
         this.secrets.load();
     }
 
-    public static ConfigManager getInstance() {
+    public static synchronized ConfigManager getInstance() {
         if (instance == null) {
             instance = new ConfigManager();
         }

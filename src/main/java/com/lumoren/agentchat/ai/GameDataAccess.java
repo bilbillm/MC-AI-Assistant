@@ -199,6 +199,89 @@ public class GameDataAccess {
     }
 
     /**
+     * 查询所有使用指定物品作为原料的配方（反向配方查询）。
+     * <p>
+     * 遍历所有配方类型，检查每个配方中是否包含目标物品作为原料。
+     * 基于原版 {@link RecipeManager}，不含 JEI 增强数据。
+     *
+     * @param mc     Minecraft 客户端实例
+     * @param itemId 作为原料的物品 {@link ResourceLocation}
+     * @return 使用该物品作为原料的配方列表
+     */
+    @SuppressWarnings("unchecked")
+    public static List<RecipeResult> getUsagesForInput(Minecraft mc, ResourceLocation itemId) {
+        if (mc.level == null) {
+            return List.of();
+        }
+
+        RecipeManager manager = mc.level.getRecipeManager();
+        RegistryAccess registryAccess = mc.level.registryAccess();
+        List<RecipeResult> results = new ArrayList<>();
+
+        try {
+            // Iterate all registered recipe types via BuiltInRegistries
+            // (RecipeManager does not expose getRecipeTypes() in vanilla 1.21.1)
+            for (var entry : BuiltInRegistries.RECIPE_TYPE.entrySet()) {
+                RecipeType<?> type = entry.getValue();
+                var recipesRaw = manager.getAllRecipesFor((RecipeType) type);
+                for (Object obj : recipesRaw) {
+                    RecipeHolder<?> holder = (RecipeHolder<?>) obj;
+                    Recipe<?> recipe = holder.value();
+
+                    // Check if any ingredient matches the target item
+                    boolean usesItem = false;
+                    for (net.minecraft.world.item.crafting.Ingredient ing : recipe.getIngredients()) {
+                        for (ItemStack stack : ing.getItems()) {
+                            ResourceLocation key = getItemKey(stack.getItem());
+                            if (itemId.equals(key)) {
+                                usesItem = true;
+                                break;
+                            }
+                        }
+                        if (usesItem) break;
+                    }
+
+                    if (!usesItem) continue;
+
+                    // Build structured input list
+                    List<RecipeResult.Ingredient> inputs = new ArrayList<>();
+                    for (net.minecraft.world.item.crafting.Ingredient ing : recipe.getIngredients()) {
+                        if (!ing.isEmpty()) {
+                            ItemStack[] stacks = ing.getItems();
+                            if (stacks.length > 0) {
+                                String ingId = getItemKey(stacks[0].getItem()).toString();
+                                int count = stacks[0].getCount();
+                                inputs.add(new RecipeResult.Ingredient(ingId, count));
+                            }
+                        }
+                    }
+
+                    // Extract output
+                    ItemStack result = recipe.getResultItem(registryAccess);
+                    String outputId = result.isEmpty()
+                            ? "unknown"
+                            : getItemKey(result.getItem()).toString();
+                    int outputCount = result.getCount();
+
+                    String recipeId = holder.id().toString();
+                    String typeName = type.toString();
+
+                    results.add(new RecipeResult(
+                            recipeId,
+                            inputs,
+                            new RecipeResult.ItemStack(outputId, outputCount),
+                            typeName
+                    ));
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[AgentChat] Usages lookup error: " + e.getMessage());
+        }
+
+        return results;
+    }
+
+    /**
      * 将 {@link ItemStack} 转换为 {@link InventoryItem} 记录。
      *
      * @param slot  背包槽位索引

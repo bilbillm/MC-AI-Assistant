@@ -21,6 +21,8 @@ import java.util.regex.Pattern;
  * Tool for searching the web via DuckDuckGo HTML search (no API key required).
  * <p>
  * Returns the top 3-5 search results with title, URL, and snippet.
+ * Supports a {@code deep} parameter that fetches and reads the actual page content
+ * of the top 3 results instead of just snippets.
  */
 public class WebSearchTool implements GameTool {
 
@@ -55,10 +57,18 @@ public class WebSearchTool implements GameTool {
         parameters.addProperty("type", "object");
 
         JsonObject properties = new JsonObject();
+
         JsonObject queryProp = new JsonObject();
         queryProp.addProperty("type", "string");
         queryProp.addProperty("description", "The search query");
         properties.add("query", queryProp);
+
+        JsonObject deepProp = new JsonObject();
+        deepProp.addProperty("type", "boolean");
+        deepProp.addProperty("description",
+                "If true, fetch and read the actual content of top 3 result pages instead of just snippets. Slower but more detailed.");
+        properties.add("deep", deepProp);
+
         parameters.add("properties", properties);
 
         com.google.gson.JsonArray required = new com.google.gson.JsonArray();
@@ -77,16 +87,29 @@ public class WebSearchTool implements GameTool {
                 return new ToolResult(NAME, "Error: search query is required");
             }
 
+            boolean deep = extractDeep(arguments);
+
             // Encode and search
             String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
-            String url = DDG_HTML_URL + encodedQuery;
 
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(5))
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
 
-            // Try DuckDuckGo first, fall back to Bing
+            if (deep) {
+                // Deep mode: fetch actual page content from top results
+                List<SearchResult> results = doSearch(client, DDG_HTML_URL + encodedQuery);
+                if (results == null || results.isEmpty()) {
+                    results = doSearch(client, BING_URL + encodedQuery);
+                }
+                if (results != null && !results.isEmpty()) {
+                    return new ToolResult(NAME, deepSearch(results, query));
+                }
+                // Fall through to standard search if deep search produced no results
+            }
+
+            // Standard (non-deep) search
             String result = trySearch(client, DDG_HTML_URL + encodedQuery, query);
             if (result.startsWith("Search unavailable")) {
                 result = trySearch(client, BING_URL + encodedQuery, query);
@@ -99,9 +122,10 @@ public class WebSearchTool implements GameTool {
     }
 
     /**
-     * Try to search with a given URL, return formatted results or error message.
+     * Perform the HTTP request and parse results. Returns the raw list of
+     * {@link SearchResult} objects (may be empty on failure).
      */
-    private String trySearch(HttpClient client, String searchUrl, String query) {
+    private List<SearchResult> doSearch(HttpClient client, String searchUrl) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(searchUrl))
@@ -116,20 +140,62 @@ public class WebSearchTool implements GameTool {
                     HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
-                return "Search unavailable (HTTP " + response.statusCode() + ")";
+                return new ArrayList<>();
             }
 
-            String html = response.body();
-            List<SearchResult> results = parseResults(html);
-
-            if (results.isEmpty()) {
-                return "No results found for: " + query;
-            }
-
-            return formatResults(results);
+            return parseResults(response.body());
         } catch (Exception e) {
-            return "Search unavailable: " + e.getMessage();
+            return new ArrayList<>();
         }
+    }
+
+    /**
+     * Try to search with a given URL, return formatted results or error message.
+     */
+    private String trySearch(HttpClient client, String searchUrl, String query) {
+        List<SearchResult> results = doSearch(client, searchUrl);
+
+        if (results.isEmpty()) {
+            return "No results found for: " + query;
+        }
+
+        return formatResults(results);
+    }
+
+    /**
+     * Deep search: for each of the top 3 results with a URL, fetch the actual
+     * page content, extract the readable body text, and return combined content.
+     */
+    private String deepSearch(List<SearchResult> results, String query) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Deep search results for: ").append(query).append("\n\n");
+
+        int count = 0;
+        for (SearchResult r : results) {
+            if (r.url().isBlank()) {
+                continue;
+            }
+            if (count >= 3) {
+                break;
+            }
+
+            sb.append("=== ").append(count + 1).append(". ").append(r.title()).append(" ===\n");
+            sb.append("URL: ").append(r.url()).append("\n");
+
+            try {
+                String content = WebContentFetcher.fetchAndExtract(r.url(), 10);
+                sb.append(content).append("\n\n");
+            } catch (Exception e) {
+                sb.append("[Failed to fetch: ").append(e.getMessage()).append("]\n\n");
+            }
+            count++;
+        }
+
+        if (count == 0) {
+            return formatResults(results); // fall back to snippets
+        }
+
+        return sb.toString().trim();
     }
 
     /**
@@ -145,6 +211,21 @@ public class WebSearchTool implements GameTool {
             // Fall through to return null
         }
         return null;
+    }
+
+    /**
+     * Extract the "deep" field from JSON arguments. Returns false if absent.
+     */
+    private boolean extractDeep(String arguments) {
+        try {
+            JsonObject args = new com.google.gson.Gson().fromJson(arguments, JsonObject.class);
+            if (args != null && args.has("deep")) {
+                return args.get("deep").getAsBoolean();
+            }
+        } catch (Exception e) {
+            // Fall through to return false
+        }
+        return false;
     }
 
     /**
@@ -206,10 +287,9 @@ public class WebSearchTool implements GameTool {
      * Remove HTML tags from a string.
      */
     private String stripHtml(String html) {
-        return html.replaceAll("<[^>]*>", "").replaceAll("&amp;", "&")
-                .replaceAll("&lt;", "<").replaceAll("&gt;", ">")
-                .replaceAll("&quot;", "\"").replaceAll("&#x27;", "'")
-                .trim();
+        String text = html.replaceAll("<[^>]*>", "");
+        text = WebContentFetcher.decodeHtmlEntities(text);
+        return text.trim();
     }
 
     /**

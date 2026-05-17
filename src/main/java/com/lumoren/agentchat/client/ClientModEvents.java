@@ -18,7 +18,7 @@ import org.lwjgl.glfw.GLFW;
  * <p>
  * The actual key press handling is in {@link ClientEventHandler}.
  */
-@EventBusSubscriber(modid = AgentChat.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = AgentChat.MODID, value = Dist.CLIENT)
 public class ClientModEvents {
 
     /** The key binding: backtick/grave accent (`). */

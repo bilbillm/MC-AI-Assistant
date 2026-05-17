@@ -37,7 +37,7 @@ import java.util.List;
  *   <li>{@code /agentchat thread switch <id>} — 切换到指定线程</li>
  * </ul>
  */
-@EventBusSubscriber(modid = AgentChat.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = AgentChat.MODID, value = Dist.CLIENT)
 public class AgentChatCommand {
 
     @SubscribeEvent

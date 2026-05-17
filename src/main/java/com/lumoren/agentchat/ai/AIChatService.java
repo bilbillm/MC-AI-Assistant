@@ -2,6 +2,7 @@ package com.lumoren.agentchat.ai;
 
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ToolDefinition;
+import com.lumoren.agentchat.persistence.ConversationManager;
 import com.lumoren.agentchat.persistence.ProjectManager;
 import com.lumoren.agentchat.tools.ToolRegistry;
 import net.minecraft.client.Minecraft;
@@ -30,7 +31,7 @@ public class AIChatService {
     private final ToolRegistry toolRegistry;
     private static final int MAX_ROUNDS = 20;
     private volatile boolean cancelled;
-    private static boolean debugMode = false;
+    private static volatile boolean debugMode = false;
 
     public static boolean isDebugMode() { return debugMode; }
 
@@ -64,6 +65,9 @@ public class AIChatService {
 
         /** Called when AI requests a tool execution (before the tool runs). */
         default void onToolCall(String name, String arguments) {}
+
+        /** Called when the assistant outputs text alongside tool calls (non-streaming). */
+        default void onAssistantMessage(String text) {}
 
         /** Called when a tool execution completes with results. */
         default void onToolResult(String result) {}
@@ -147,6 +151,12 @@ public class AIChatService {
         }
         conversation.add(ChatMessage.user(userInput));
 
+        // Log user message to session log
+        var mgr = ConversationManager.getInstance();
+        if (mgr != null && mgr.getCurrentThread() != null) {
+            SessionLogger.logUser(mgr.getCurrentThread().getId(), userInput);
+        }
+
         runConversationLoop(conversation, callback, 0);
     }
 
@@ -188,70 +198,99 @@ public class AIChatService {
 
         client.chatCompletionWithTools(conversation, tools)
             .thenAccept(response -> {
-                if (cancelled) return;
+                runOnMainThread(() -> {
+                    if (cancelled) return;
 
-                if (response.toolCalls() != null && !response.toolCalls().isEmpty()) {
-                    // AI requested tool calls - add assistant message to history and execute tools
-                    conversation.add(response);
+                    if (response.toolCalls() != null && !response.toolCalls().isEmpty()) {
+                        // AI requested tool calls - add assistant message to history and execute tools
+                        conversation.add(response);
 
-                    for (ChatMessage.ToolCall tc : response.toolCalls()) {
-                        callback.onThinking("querying " + tc.function().name() + "...");
-                        callback.onToolCall(tc.function().name(), tc.function().arguments());
-                    }
+                        // Show content text that appears between tool calls
+                        if (response.content() != null && !response.content().isBlank()) {
+                            callback.onAssistantMessage(response.content());
+                        }
 
-                    List<ChatMessage> toolResults = dispatcher.executeToolCalls(
-                        response.toolCalls(), Minecraft.getInstance()
-                    );
-                    conversation.addAll(toolResults);
+                        for (ChatMessage.ToolCall tc : response.toolCalls()) {
+                            callback.onThinking("querying " + tc.function().name() + "...");
+                            callback.onToolCall(tc.function().name(), tc.function().arguments());
+                        }
 
-                    for (ChatMessage tr : toolResults) {
-                        callback.onToolResult(tr.content());
-                    }
+                        List<ChatMessage> toolResults = dispatcher.executeToolCalls(
+                            response.toolCalls(), Minecraft.getInstance()
+                        );
+                        conversation.addAll(toolResults);
 
-                    // Continue the loop with updated history
-                    runConversationLoop(conversation, callback, round + 1);
-                } else {
-                    // No tool calls - stream the final text response to the user
-                    ToolCallFilter xmlFilter = new ToolCallFilter();
-                    client.chatCompletionStreaming(conversation, null, new OpenAICompatClient.StreamCallback() {
-                        private final StringBuilder fullResponse = new StringBuilder();
+                        for (ChatMessage tr : toolResults) {
+                            callback.onToolResult(tr.content());
+                        }
 
-                        @Override
-                        public void onToken(String token) {
-                            if (cancelled) return;
-                            // Filter out DeepSeek tool call XML fragments (multi-token spans)
-                            String filtered = xmlFilter.filter(token);
-                            if (filtered != null) {
-                                callback.onToken(filtered);
-                                fullResponse.append(filtered);
+                        // Continue the loop with updated history
+                        runConversationLoop(conversation, callback, round + 1);
+                    } else {
+                        // No tool calls - stream the final text response to the user
+                        ToolCallFilter xmlFilter = new ToolCallFilter();
+                        client.chatCompletionStreaming(conversation, null, new OpenAICompatClient.StreamCallback() {
+                            private final StringBuilder fullResponse = new StringBuilder();
+
+                            @Override
+                            public void onToken(String token) {
+                                if (cancelled) return;
+                                // Filter out DeepSeek tool call XML fragments (multi-token spans)
+                                String filtered = xmlFilter.filter(token);
+                                if (xmlFilter.justExitedToolCall()) {
+                                    callback.onToolCall("🔧 tool", "processing...");
+                                }
+                                if (filtered != null) {
+                                    callback.onToken(filtered);
+                                    fullResponse.append(filtered);
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onReasoningToken(String token) {
-                            if (cancelled) return;
-                            callback.onReasoningToken(token);
-                        }
+                            @Override
+                            public void onReasoningToken(String token) {
+                                if (cancelled) return;
+                                callback.onReasoningToken(token);
+                            }
 
-                        @Override
-                        public void onComplete() {
-                            if (cancelled) return;
-                            callback.onComplete(fullResponse.toString());
-                        }
+                            @Override
+                            public void onComplete() {
+                                if (cancelled) return;
+                                String finalText = fullResponse.toString();
+                                callback.onComplete(finalText);
+                                // Log streamed response to session log
+                                var mgr = ConversationManager.getInstance();
+                                if (mgr != null && mgr.getCurrentThread() != null) {
+                                    SessionLogger.logStreamComplete(mgr.getCurrentThread().getId(), finalText);
+                                }
+                            }
 
-                        @Override
-                        public void onError(Throwable error) {
-                            if (cancelled) return;
-                            callback.onError(error.getMessage());
-                        }
-                    });
-                }
+                            @Override
+                            public void onError(Throwable error) {
+                                if (cancelled) return;
+                                callback.onError(error.getMessage());
+                            }
+                        });
+                    }
+                });
             })
             .exceptionally(throwable -> {
                 Throwable cause = unwrap(throwable);
                 callback.onError(cause.getMessage());
                 return null;
             });
+    }
+
+    /**
+     * Run a task on the Minecraft main/render thread if available, otherwise
+     * execute directly (for unit tests or headless environments).
+     */
+    private static void runOnMainThread(Runnable task) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc != null) {
+            mc.execute(task);
+        } else {
+            task.run();
+        }
     }
 
     private static Throwable unwrap(Throwable throwable) {
@@ -268,38 +307,51 @@ public class AIChatService {
      * per-token check is insufficient.
      */
     private static class ToolCallFilter {
-        private boolean inToolCall;
+        private boolean inInvoke;   // inside <DSML|invoke>...</DSML|invoke> — suppress
+        private boolean justExited;  // just exited an invoke block — fire onToolCall once
         private final StringBuilder buffer = new StringBuilder();
 
         /**
-         * Feed a token through the filter. Returns the token if it should be
-         * displayed, or null if it should be suppressed.
+         * Feed a token through the filter. Returns the token (or its non-invoke prefix)
+         * if it should be displayed, or null if entirely suppressed.
+         * <p>
+         * If a token CONTAINS an invoke start marker preceded by text, the text before
+         * the marker is returned while the invoke portion is suppressed.
          */
         String filter(String token) {
             if (token == null || token.isEmpty()) return token;
 
-            if (!inToolCall) {
-                // Check for tool call start markers
-                if (token.contains("▌") || token.contains("<DSML|") || token.contains("|tool_calls>")
-                        || token.contains("|invoke") || token.contains("|parameter")) {
-                    inToolCall = true;
+            if (!inInvoke) {
+                int invokeAt = token.indexOf("|invoke");
+                if (invokeAt >= 0) {
+                    // Enter invoke — suppress from the marker onward
+                    String before = invokeAt > 0 ? token.substring(0, invokeAt) : null;
+                    inInvoke = true;
                     buffer.setLength(0);
-                    buffer.append(token);
-                    // Check if the tool call also ends within this token
-                    if (token.contains("</tool_calls>") || token.contains("|tool_calls")) {
-                        inToolCall = false;
+                    buffer.append(token.substring(invokeAt));
+                    if (token.contains("</invoke>") || token.contains("</DSML|invoke>")) {
+                        inInvoke = false;
+                        justExited = true;
                     }
-                    return null;
+                    // Return text BEFORE the invoke marker (may be null if invoke starts at position 0)
+                    return (before != null && !before.isBlank()) ? before : null;
                 }
                 return token;
             } else {
-                // Inside a tool call block — buffer and suppress
                 buffer.append(token);
-                if (token.contains("</tool_calls>") || token.contains("|tool_calls")) {
-                    inToolCall = false;
+                if (token.contains("</invoke>") || token.contains("</DSML|invoke>")
+                        || token.contains("</tool_calls>") || token.contains("</DSML|tool_calls>")) {
+                    inInvoke = false;
+                    justExited = true;
                 }
                 return null;
             }
+        }
+
+        boolean justExitedToolCall() {
+            boolean result = justExited;
+            justExited = false;
+            return result;
         }
     }
 }

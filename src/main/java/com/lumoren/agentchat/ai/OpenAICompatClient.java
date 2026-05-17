@@ -9,6 +9,7 @@ import com.google.gson.JsonSyntaxException;
 import com.lumoren.agentchat.config.ConfigManager;
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ToolDefinition;
+import com.lumoren.agentchat.persistence.ConversationManager;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -105,10 +106,12 @@ public class OpenAICompatClient {
         }
 
         JsonObject body = buildRequestBody(messages, tools, false);
+        SessionLogger.logApiRequest(getThreadId(), body.toString());
         HttpRequest request = buildRequest(body);
 
         return sendWithRetry(request, HttpResponse.BodyHandlers.ofString(), 0)
             .thenApply(response -> {
+                SessionLogger.logApiResponse(getThreadId(), response.body());
                 JsonObject json = gson.fromJson(response.body(), JsonObject.class);
                 JsonArray choices = json.getAsJsonArray("choices");
                 if (choices == null || choices.isEmpty()) {
@@ -137,10 +140,12 @@ public class OpenAICompatClient {
         }
 
         JsonObject body = buildRequestBody(messages, tools, false);
+        SessionLogger.logApiRequest(getThreadId(), body.toString());
         HttpRequest request = buildRequest(body);
 
         return sendWithRetry(request, HttpResponse.BodyHandlers.ofString(), 0)
             .thenApply(response -> {
+                SessionLogger.logApiResponse(getThreadId(), response.body());
                 JsonObject json = gson.fromJson(response.body(), JsonObject.class);
                 JsonArray choices = json.getAsJsonArray("choices");
                 if (choices == null || choices.isEmpty()) {
@@ -192,6 +197,7 @@ public class OpenAICompatClient {
         }
 
         JsonObject body = buildRequestBody(messages, tools, true);
+        SessionLogger.logApiRequest(getThreadId(), body.toString());
         HttpRequest request = buildRequest(body);
 
         sendWithRetry(request, HttpResponse.BodyHandlers.ofLines(), 0)
@@ -394,5 +400,14 @@ public class OpenAICompatClient {
             return throwable.getCause() != null ? throwable.getCause() : throwable;
         }
         return throwable;
+    }
+
+    /** Get the current conversation thread ID for session logging. */
+    private static String getThreadId() {
+        var mgr = ConversationManager.getInstance();
+        if (mgr != null && mgr.getCurrentThread() != null) {
+            return mgr.getCurrentThread().getId();
+        }
+        return "unknown";
     }
 }

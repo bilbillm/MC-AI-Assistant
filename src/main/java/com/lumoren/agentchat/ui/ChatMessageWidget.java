@@ -271,16 +271,16 @@ public class ChatMessageWidget {
             contentY += REASONING_HEADER_HEIGHT + 2;
 
             if (isReasoningExpanded()) {
-                // Separator
+                // Reasoning text FIRST (rendered before separator)
+                graphics.drawWordWrap(font, renderedReasoning, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_REASONING);
+                contentY += reasoningHeight + 2;
+                // Separator AFTER reasoning text, BEFORE output content
                 graphics.fill(bubbleX + PADDING, contentY, bubbleX + bubbleWidth - PADDING, contentY + 1, ChatColors.SEPARATOR);
                 contentY += 4;
-                // Reasoning text
-                graphics.drawWordWrap(font, renderedReasoning, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_REASONING);
-                contentY += reasoningHeight + 4;
             }
         }
-        // Main response text — manual word-wrap to track link positions
-        renderManualWordWrap(graphics, font, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_SECONDARY);
+        // Main response text — use drawWordWrap to preserve Markdown styles (bold, italic)
+        graphics.drawWordWrap(font, renderedContent, bubbleX + PADDING, contentY, innerWidth, ChatColors.TEXT_SECONDARY);
     }
 
     // ==================== Manual word-wrap rendering with link tracking ====================

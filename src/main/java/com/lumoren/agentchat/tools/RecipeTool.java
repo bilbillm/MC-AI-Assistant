@@ -91,30 +91,7 @@ public class RecipeTool implements GameTool {
 
             // Vanilla fallback
             List<RecipeResult> recipes = GameDataAccess.getRecipesForOutput(mc, itemId);
-
-            JsonArray recipesArray = new JsonArray();
-            for (RecipeResult recipe : recipes) {
-                JsonObject recipeObj = new JsonObject();
-                recipeObj.addProperty("recipe_id", recipe.recipeId());
-                recipeObj.addProperty("type", recipe.type());
-
-                JsonObject outputObj = new JsonObject();
-                outputObj.addProperty("item_id", recipe.output().itemId());
-                outputObj.addProperty("count", recipe.output().count());
-                recipeObj.add("output", outputObj);
-
-                JsonArray inputsArray = new JsonArray();
-                for (RecipeResult.Ingredient ing : recipe.input()) {
-                    JsonObject ingObj = new JsonObject();
-                    ingObj.addProperty("item_id", ing.itemId());
-                    ingObj.addProperty("count", ing.count());
-                    inputsArray.add(ingObj);
-                }
-                recipeObj.add("input", inputsArray);
-
-                recipesArray.add(recipeObj);
-            }
-            return new ToolResult(NAME, recipesArray.toString());
+            return new ToolResult(NAME, RecipeResult.toJsonArray(recipes).toString());
         } catch (Exception e) {
             return new ToolResult(NAME, "Error: " + e.getMessage());
         }
@@ -165,7 +142,7 @@ public class RecipeTool implements GameTool {
                     .toList();
 
             for (Object recipe : recipes) {
-                sb.append("  - ").append(recipe).append("\n");
+                sb.append("  - ").append(formatRecipeDetail(recipe)).append("\n");
             }
         }
 
@@ -212,7 +189,7 @@ public class RecipeTool implements GameTool {
                     .toList();
 
             for (Object recipe : recipes) {
-                sb.append("  - ").append(recipe).append("\n");
+                sb.append("  - ").append(formatRecipeDetail(recipe)).append("\n");
             }
         }
 
@@ -258,5 +235,57 @@ public class RecipeTool implements GameTool {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Formats a JEI recipe object into a human-readable string showing inputs → outputs.
+     * <p>
+     * Attempts structured extraction when the recipe is a vanilla
+     * {@link net.minecraft.world.item.crafting.Recipe} or {@code RecipeHolder}.
+     * Falls back to {@code toString()} truncated to 200 chars.
+     */
+    private static String formatRecipeDetail(Object recipe) {
+        // Unwrap RecipeHolder
+        if (recipe instanceof net.minecraft.world.item.crafting.RecipeHolder<?> holder) {
+            return formatRecipeDetail(holder.value());
+        }
+
+        // Structured rendering for vanilla Recipe
+        if (recipe instanceof net.minecraft.world.item.crafting.Recipe<?> mcRecipe) {
+            try {
+                StringBuilder sb = new StringBuilder();
+                var ingredients = mcRecipe.getIngredients();
+                for (var ing : ingredients) {
+                    if (!ing.isEmpty()) {
+                        var items = ing.getItems();
+                        if (items.length > 0) {
+                            if (!sb.isEmpty()) sb.append(" + ");
+                            sb.append(items[0].getItem().toString());
+                            if (items[0].getCount() > 1) sb.append(" x").append(items[0].getCount());
+                        }
+                    }
+                }
+
+                Minecraft mc = Minecraft.getInstance();
+                if (mc.level != null) {
+                    var result = mcRecipe.getResultItem(mc.level.registryAccess());
+                    if (!result.isEmpty()) {
+                        sb.append(" → ").append(result.getItem().toString());
+                        if (result.getCount() > 1) sb.append(" x").append(result.getCount());
+                    }
+                }
+
+                if (!sb.isEmpty()) return sb.toString();
+            } catch (Exception ignored) {
+                // Fall through to toString fallback
+            }
+        }
+
+        // Fallback: raw toString with max length guard
+        String s = recipe.toString();
+        if (s.length() > 200) {
+            return s.substring(0, 197) + "...";
+        }
+        return s;
     }
 }

@@ -303,8 +303,18 @@ public class MessageListWidget extends AbstractWidget {
     protected void updateWidgetNarration(NarrationElementOutput output) {}
 
     public void scrollToBottom() {
+        // Recompute maxScrollOffset so it reflects latest content even before next render
+        int cw = getWidth() - SCROLLBAR_WIDTH - SCROLLBAR_MARGIN;
+        if (cw > 0) {
+            int totalHeight = computeTotalContentHeight(cw);
+            maxScrollOffset = Math.max(0, totalHeight - getHeight());
+        }
         if (maxScrollOffset > 0) scrollOffset = maxScrollOffset;
     }
+
+    public int getScrollOffset() { return scrollOffset; }
+
+    public void setScrollOffset(int offset) { this.scrollOffset = Math.max(0, offset); }
 
     public void onMessageAdded() {
         if (autoScroll) scrollToBottom();

@@ -57,6 +57,7 @@ public class AIChatScreen extends Screen {
     private int savedScroll = -1; // preserve scroll across rebuild
     private String firstUserMessage; // for auto-rename after first AI response
     private static boolean globalSidebarCollapsed = false; // persist across screen opens
+    private static int savedMessageScroll = 0; // persist message list scroll across screen opens
     private boolean sending; // guard against concurrent message sends
     private boolean autoRenamePending; // prevent multiple auto-rename calls
     private long autoRenameStartTime; // timeout guard for auto-rename
@@ -133,6 +134,7 @@ public class AIChatScreen extends Screen {
         this.messageList.setOnRecall(this::onRecallMessage);
         this.messageList.setOnEdit(this::onEditMessage);
         this.messageList.setBounds(chatLeft, listTop, chatRight - chatLeft, listBottom - listTop, font);
+        this.messageList.setScrollOffset(savedMessageScroll);
         this.addRenderableWidget(messageList);
 
         // Input + Send
@@ -231,6 +233,7 @@ public class AIChatScreen extends Screen {
     public void onClose() {
         var mgr = ConversationManager.getInstance();
         if (mgr != null) mgr.save();
+        if (messageList != null) savedMessageScroll = messageList.getScrollOffset();
         Minecraft.getInstance().setScreen(null);
     }
 
