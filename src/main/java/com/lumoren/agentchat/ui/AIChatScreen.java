@@ -4,8 +4,12 @@ import com.lumoren.agentchat.ai.AIChatService;
 import com.lumoren.agentchat.ai.ProjectPlanningService;
 import com.lumoren.agentchat.ai.TestSuite;
 import com.lumoren.agentchat.client.ClientServiceManager;
+import com.lumoren.agentchat.client.JeiGuiBridge;
+import com.lumoren.agentchat.config.ConfigManager;
+import com.lumoren.agentchat.guide.ModpackGuideService;
 import com.lumoren.agentchat.i18n.I18nHelper;
 import com.lumoren.agentchat.i18n.I18nKeys;
+import com.lumoren.agentchat.model.AssistantAction;
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ConversationThread;
 import com.lumoren.agentchat.model.ItemRequirement;
@@ -15,6 +19,8 @@ import com.lumoren.agentchat.model.TaskStatus;
 import com.lumoren.agentchat.model.TaskType;
 import com.lumoren.agentchat.persistence.ConversationManager;
 import com.lumoren.agentchat.persistence.ProjectManager;
+import com.lumoren.agentchat.ui.action.ActionExecutionResult;
+import com.lumoren.agentchat.ui.action.AssistantActionExecutor;
 import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -50,6 +56,7 @@ public class AIChatScreen extends Screen {
     private EditBox inputField;
     private Button sendButton;
     private Button newChatButton;
+    private Button guideModeButton;
     private Button configButton;
     private Button deleteButton;
     private boolean rebuilding;
@@ -64,6 +71,10 @@ public class AIChatScreen extends Screen {
     private String selectedMessageUuid; // right-click selected message for recall/edit
     private String pendingEditMessageUuid; // UUID of message being deep-edited
     private java.util.Set<String> expandedReasonings = new java.util.HashSet<>(); // persist across rebuildLayout
+    private boolean guideMode;
+    private final ModpackGuideService guideService = new ModpackGuideService();
+    private final AssistantActionExecutor actionExecutor =
+            new AssistantActionExecutor(Minecraft::getInstance, new JeiGuiBridge());
 
     // ==================== Project system ====================
     private boolean projectJustCompleted;
@@ -71,10 +82,12 @@ public class AIChatScreen extends Screen {
     private String pendingProjectName;
     private List<Task> pendingTasks;
     private String pendingPlanningPrompt; // injected into API call, NOT displayed in UI
+    private String pendingGuidePrompt; // injected into API call, NOT displayed in UI
 
     public AIChatScreen() {
         super(I18nHelper.translate(I18nKeys.TITLE));
         this.chatService = ClientServiceManager.getChatService();
+        this.guideMode = ConfigManager.getInstance().isGuideModeDefault();
     }
 
     @Override
@@ -121,6 +134,9 @@ public class AIChatScreen extends Screen {
         // New Chat, Config & Delete buttons (right side of title bar)
         this.newChatButton = this.addRenderableWidget(Button.builder(
                         I18nHelper.translate(I18nKeys.BUTTON_NEW_THREAD), this::onNewChat)
+                .bounds(chatRight - 245, PADDING, 55, 18).build());
+        this.guideModeButton = this.addRenderableWidget(Button.builder(
+                        guideModeLabel(), this::onToggleGuideMode)
                 .bounds(chatRight - 185, PADDING, 55, 18).build());
         this.configButton = this.addRenderableWidget(Button.builder(
                         I18nHelper.translate(I18nKeys.BUTTON_CONFIG), this::onOpenConfig)
@@ -133,6 +149,8 @@ public class AIChatScreen extends Screen {
         this.messageList = new MessageListWidget(thread, streamer, expandedReasonings);
         this.messageList.setOnRecall(this::onRecallMessage);
         this.messageList.setOnEdit(this::onEditMessage);
+        this.messageList.setOnCopy(this::onCopyMessage);
+        this.messageList.setOnAction(this::onAssistantAction);
         this.messageList.setBounds(chatLeft, listTop, chatRight - chatLeft, listBottom - listTop, font);
         this.messageList.setScrollOffset(savedMessageScroll);
         this.addRenderableWidget(messageList);
@@ -260,6 +278,20 @@ public class AIChatScreen extends Screen {
         var mgr = ConversationManager.getInstance();
         if (mgr != null) mgr.save();
         Minecraft.getInstance().setScreen(new ConfigScreen(this));
+    }
+
+    private void onToggleGuideMode(Button b) {
+        guideMode = !guideMode;
+        b.setMessage(guideModeLabel());
+        String status = I18nHelper.translateToString(guideMode
+                ? I18nKeys.STATUS_GUIDE_ENABLED : I18nKeys.STATUS_CHAT_ENABLED);
+        thread.addMessage(ChatMessage.system(status));
+        refreshProjectUI();
+    }
+
+    private Component guideModeLabel() {
+        return I18nHelper.translate(guideMode
+                ? I18nKeys.BUTTON_GUIDE_MODE : I18nKeys.BUTTON_CHAT_MODE);
     }
 
     private void onDeleteThread(Button b) {
@@ -393,6 +425,10 @@ public class AIChatScreen extends Screen {
         // Check project intent (may inject system message into thread)
         checkProjectIntent(text);
 
+        if (guideService.shouldEnhance(text, guideMode)) {
+            pendingGuidePrompt = guideService.buildGuidePrompt(Minecraft.getInstance(), text, guideMode);
+        }
+
         // Track first message for auto-rename
         if (thread.messageCount() == 0) {
             firstUserMessage = text;
@@ -411,6 +447,12 @@ public class AIChatScreen extends Screen {
             augmented.add(ChatMessage.system(pendingPlanningPrompt));
             history = augmented;
             pendingPlanningPrompt = null;
+        }
+        if (pendingGuidePrompt != null) {
+            List<ChatMessage> augmented = new java.util.ArrayList<>(history);
+            augmented.add(ChatMessage.system(pendingGuidePrompt));
+            history = augmented;
+            pendingGuidePrompt = null;
         }
 
         chatService.sendMessage(text, history, streamer);
@@ -458,6 +500,49 @@ public class AIChatScreen extends Screen {
         inputField.setFocused(true);
         sendButton.active = true;
         selectedMessageUuid = null;
+    }
+
+    /** Copy message text to system clipboard. */
+    private void onCopyMessage(String messageUuid) {
+        int index = thread.findMessageIndex(messageUuid);
+        if (index < 0) return;
+        ChatMessage msg = thread.getMessages().get(index);
+        Minecraft.getInstance().keyboardHandler.setClipboard(msg.content());
+    }
+
+    private void onAssistantAction(AssistantAction action) {
+        ActionExecutionResult result = actionExecutor.execute(action, actionContext);
+        if (result.status() == ActionExecutionResult.Status.FAILURE && !result.message().isBlank()) {
+            thread.addMessage(ChatMessage.system(result.message()));
+            refreshProjectUI();
+            autoSave();
+        }
+    }
+
+    private final AssistantActionExecutor.ActionContext actionContext =
+            new AssistantActionExecutor.ActionContext() {
+                @Override
+                public void appendToolResult(String content) {
+                    AIChatScreen.this.appendToolResult(content);
+                }
+
+                @Override
+                public void sendFollowUp(String query) {
+                    sendMessage(query);
+                }
+
+                @Override
+                public void showSystemMessage(String message) {
+                    thread.addMessage(ChatMessage.system(message));
+                    refreshProjectUI();
+                    autoSave();
+                }
+            };
+
+    private void appendToolResult(String content) {
+        thread.addMessage(new ChatMessage("tool", content, null, null, null, null));
+        refreshProjectUI();
+        autoSave();
     }
 
     // ==================== Project System ====================

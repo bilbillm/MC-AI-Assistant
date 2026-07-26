@@ -41,6 +41,8 @@ public final class I18nKeys {
     public static final String BUTTON_CONFIG = "agentchat.button.config";
     /** 删除按钮 */
     public static final String BUTTON_DELETE = "agentchat.button.delete";
+    public static final String BUTTON_GUIDE_MODE = "agentchat.button.guide_mode";
+    public static final String BUTTON_CHAT_MODE = "agentchat.button.chat_mode";
 
     // ==================== LOADING ====================
     /** AI 思考中 */
@@ -83,6 +85,8 @@ public final class I18nKeys {
     public static final String CONFIG_HINT_BASE_URL = "agentchat.config.hint.base_url";
     public static final String CONFIG_HINT_MODEL = "agentchat.config.hint.model";
     public static final String CONFIG_HINT_MAX_TOKENS = "agentchat.config.hint.max_tokens";
+    public static final String CONFIG_GUIDE_MODE_DEFAULT = "agentchat.config.guide_mode_default";
+    public static final String CONFIG_WEB_KNOWLEDGE = "agentchat.config.web_knowledge";
 
     // ==================== KEY BINDINGS ====================
     /** 按键分类名 */
@@ -115,6 +119,45 @@ public final class I18nKeys {
     public static final String STATUS_DISCONNECTED = "agentchat.status.disconnected";
     /** 正在发送 */
     public static final String STATUS_SENDING = "agentchat.status.sending";
+    public static final String STATUS_GUIDE_ENABLED = "agentchat.status.guide_enabled";
+    public static final String STATUS_CHAT_ENABLED = "agentchat.status.chat_enabled";
+    public static final String STATUS_CANCEL_PROJECT_CARD_BLOCKED = "agentchat.status.cancel_project_card_blocked";
+
+    // ==================== ACTION CARD ====================
+    /** 动作按钮：查看配方 */
+    public static final String ACTION_LABEL_OPEN_RECIPE = "agentchat.action.label.open_recipe";
+    /** 动作按钮：查看用途 */
+    public static final String ACTION_LABEL_OPEN_USAGE = "agentchat.action.label.open_usage";
+    /** 动作按钮：标记完成 */
+    public static final String ACTION_LABEL_MARK_DONE = "agentchat.action.label.mark_done";
+    /** 动作按钮：设为当前 */
+    public static final String ACTION_LABEL_SET_CURRENT = "agentchat.action.label.set_current";
+    /** 动作按钮：查看项目 */
+    public static final String ACTION_LABEL_SHOW_PROJECT = "agentchat.action.label.show_project";
+    /** 动作按钮：询问目标 */
+    public static final String ACTION_LABEL_ASK_GOAL = "agentchat.action.label.ask_goal";
+    /** 动作按钮：搜索资料 */
+    public static final String ACTION_LABEL_SEARCH_SOURCES = "agentchat.action.label.search_sources";
+    /** 动作按钮：澄清物品 */
+    public static final String ACTION_LABEL_CLARIFY_ITEM = "agentchat.action.label.clarify_item";
+    /** 不支持的操作 */
+    public static final String ACTION_ERROR_UNKNOWN_ACTION = "agentchat.action.error.unknown_action";
+    /** 操作缺少物品目标 */
+    public static final String ACTION_ERROR_MISSING_ITEM = "agentchat.action.error.missing_item";
+    /** 无法识别物品（含参数） */
+    public static final String ACTION_ERROR_UNKNOWN_ITEM = "agentchat.action.error.unknown_item";
+    /** 操作缺少任务目标 */
+    public static final String ACTION_ERROR_MISSING_TASK = "agentchat.action.error.missing_task";
+    /** 操作缺少追问内容 */
+    public static final String ACTION_ERROR_MISSING_QUERY = "agentchat.action.error.missing_query";
+    /** 已在 JEI 中打开（含参数） */
+    public static final String ACTION_STATUS_JEI_OPENED = "agentchat.action.status.jei_opened";
+    /** JEI 不可用，回退本地数据 */
+    public static final String ACTION_STATUS_JEI_UNAVAILABLE_FALLBACK = "agentchat.action.status.jei_unavailable_fallback";
+    /** JEI 打开失败，回退本地数据 */
+    public static final String ACTION_STATUS_JEI_FAILED_FALLBACK = "agentchat.action.status.jei_failed_fallback";
+    /** 重复点击被忽略 */
+    public static final String ACTION_STATUS_IGNORED_DUPLICATE = "agentchat.action.status.ignored_duplicate";
 
     // ==================== PROJECT SYSTEM ====================
     /** HUD 项目进度（含参数：名称, 已完成, 总数） */
