@@ -167,6 +167,30 @@ public final class I18nKeys {
     /** 向导阶段：搜索网络资料 */
     public static final String GUIDE_PHASE_WEB = "agentchat.guide.phase.web";
 
+    // ==================== MECHANICAL UI ====================
+    /** 模式分段：聊天 */
+    public static final String MODE_CHAT = "agentchat.mode.chat";
+    /** 模式分段：向导 */
+    public static final String MODE_GUIDE = "agentchat.mode.guide";
+    /** 工具提示：发送 */
+    public static final String TOOLTIP_SEND = "agentchat.tooltip.send";
+    /** 工具提示：新建对话 */
+    public static final String TOOLTIP_NEW_THREAD = "agentchat.tooltip.new_thread";
+    /** 工具提示：设置 */
+    public static final String TOOLTIP_CONFIG = "agentchat.tooltip.config";
+    /** 工具提示：删除对话 */
+    public static final String TOOLTIP_DELETE_THREAD = "agentchat.tooltip.delete_thread";
+    /** 工具提示：收起侧栏 */
+    public static final String TOOLTIP_COLLAPSE_SIDEBAR = "agentchat.tooltip.collapse_sidebar";
+    /** 工具提示：展开侧栏 */
+    public static final String TOOLTIP_EXPAND_SIDEBAR = "agentchat.tooltip.expand_sidebar";
+    /** 工具提示：复制 */
+    public static final String TOOLTIP_COPY = "agentchat.tooltip.copy";
+    /** 工具提示：编辑 */
+    public static final String TOOLTIP_EDIT = "agentchat.tooltip.edit";
+    /** 工具提示：撤回 */
+    public static final String TOOLTIP_RECALL = "agentchat.tooltip.recall";
+
     // ==================== PROJECT SYSTEM ====================
     /** HUD 项目进度（含参数：名称, 已完成, 总数） */
     public static final String PROJECT_HUD_PROGRESS = "agentchat.project.hud.progress";
