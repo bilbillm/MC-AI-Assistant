@@ -156,7 +156,8 @@ public class ModpackGuideTool implements GameTool {
             }
         }
 
-        return new ActionCard(ActionCard.Type.GUIDE_STEP, title, summary, facts, actions, NAME);
+        return new ActionCard(ActionCard.Type.GUIDE_STEP, title, summary, facts, actions, NAME,
+                cardSources(context));
     }
 
     private ActionCard diagnosisCard(Minecraft mc, String question, GuideContext context) {
@@ -187,7 +188,8 @@ public class ModpackGuideTool implements GameTool {
                 ? "Minecraft modded machine not working troubleshooting" : question);
         List<AssistantAction> actions = List.of(
                 new AssistantAction(null, I18nHelper.translateToString(I18nKeys.ACTION_LABEL_SEARCH_SOURCES), AssistantAction.Kind.SEARCH_MORE, payload));
-        return new ActionCard(ActionCard.Type.DIAGNOSIS, "Machine diagnosis", summary, facts, actions, NAME);
+        return new ActionCard(ActionCard.Type.DIAGNOSIS, "Machine diagnosis", summary, facts, actions, NAME,
+                cardSources(context));
     }
 
     private ActionCard recipePlanCard(String question, GuideContext context) {
@@ -207,7 +209,8 @@ public class ModpackGuideTool implements GameTool {
             actions.add(new AssistantAction(null, I18nHelper.translateToString(I18nKeys.ACTION_LABEL_OPEN_RECIPE), AssistantAction.Kind.OPEN_RECIPE, payload));
             actions.add(new AssistantAction(null, I18nHelper.translateToString(I18nKeys.ACTION_LABEL_OPEN_USAGE), AssistantAction.Kind.OPEN_USAGE, payload));
         }
-        return new ActionCard(ActionCard.Type.GUIDE_STEP, "Recipe plan", summary, facts, actions, NAME);
+        return new ActionCard(ActionCard.Type.GUIDE_STEP, "Recipe plan", summary, facts, actions, NAME,
+                cardSources(context));
     }
 
     private ActionCard itemHelpCard(String question, GuideContext context) {
@@ -223,7 +226,8 @@ public class ModpackGuideTool implements GameTool {
             actions.add(new AssistantAction(null, I18nHelper.translateToString(I18nKeys.ACTION_LABEL_OPEN_USAGE), AssistantAction.Kind.OPEN_USAGE, payload));
             actions.add(new AssistantAction(null, I18nHelper.translateToString(I18nKeys.ACTION_LABEL_OPEN_RECIPE), AssistantAction.Kind.OPEN_RECIPE, payload));
         }
-        return new ActionCard(ActionCard.Type.SOURCE_SUMMARY, "Item guide", summary, facts, actions, NAME);
+        return new ActionCard(ActionCard.Type.SOURCE_SUMMARY, "Item guide", summary, facts, actions, NAME,
+                cardSources(context));
     }
 
     private ActionCard sourceSummaryCard(GuideContext context) {
@@ -231,7 +235,24 @@ public class ModpackGuideTool implements GameTool {
                 "Guide sources",
                 "Available local and optional guide sources for this instance.",
                 sourceFacts(context),
-                List.of(), NAME);
+                List.of(), NAME, cardSources(context));
+    }
+
+    private static List<com.lumoren.agentchat.model.CardSource> cardSources(GuideContext context) {
+        List<com.lumoren.agentchat.model.CardSource> sources = new ArrayList<>();
+        for (GuideEvidence evidence : context.evidence()) {
+            String label = evidence.title();
+            if (label == null || label.isBlank()) {
+                label = evidence.sourceType().name();
+            }
+            if (label.length() > 24) {
+                label = label.substring(0, 23) + "…";
+            }
+            sources.add(new com.lumoren.agentchat.model.CardSource(
+                    evidence.sourceType().name(), label,
+                    evidence.sourceIdOrUrl(), evidence.verified()));
+        }
+        return sources;
     }
 
     private static List<String> sourceFacts(GuideContext context) {

@@ -16,6 +16,7 @@ import java.util.List;
  * @param facts      verified facts produced by tools
  * @param actions    suggested executable actions
  * @param sourceTool tool that produced this card
+ * @param sources    compact evidence source badges (may be empty)
  */
 public record ActionCard(
         Type type,
@@ -23,11 +24,19 @@ public record ActionCard(
         String summary,
         List<String> facts,
         List<AssistantAction> actions,
-        String sourceTool
+        String sourceTool,
+        List<CardSource> sources
 ) {
     public ActionCard {
         facts = facts == null ? List.of() : List.copyOf(facts);
         actions = actions == null ? List.of() : List.copyOf(actions);
+        sources = sources == null ? List.of() : List.copyOf(sources);
+    }
+
+    /** Backward-compatible constructor without source badges. */
+    public ActionCard(Type type, String title, String summary, List<String> facts,
+                      List<AssistantAction> actions, String sourceTool) {
+        this(type, title, summary, facts, actions, sourceTool, List.of());
     }
 
     public enum Type {
@@ -59,6 +68,14 @@ public record ActionCard(
             actionsArray.add(action.toJsonObject());
         }
         card.add("actions", actionsArray);
+
+        if (!sources.isEmpty()) {
+            JsonArray sourcesArray = new JsonArray();
+            for (CardSource source : sources) {
+                sourcesArray.add(source.toJsonObject());
+            }
+            card.add("sources", sourcesArray);
+        }
         return card;
     }
 
@@ -137,7 +154,22 @@ public record ActionCard(
                 }
             }
         }
-        return new ActionCard(type, title, summary, facts, actions, sourceTool);
+        return new ActionCard(type, title, summary, facts, actions, sourceTool, parseSources(obj));
+    }
+
+    private static List<CardSource> parseSources(JsonObject obj) {
+        List<CardSource> sources = new ArrayList<>();
+        if (obj.has("sources") && obj.get("sources").isJsonArray()) {
+            for (var element : obj.getAsJsonArray("sources")) {
+                if (element.isJsonObject()) {
+                    CardSource source = CardSource.fromJsonObject(element.getAsJsonObject());
+                    if (source != null) {
+                        sources.add(source);
+                    }
+                }
+            }
+        }
+        return sources;
     }
 
     private static Type parseType(String value) {

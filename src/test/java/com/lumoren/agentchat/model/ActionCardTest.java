@@ -62,6 +62,38 @@ class ActionCardTest {
     }
 
     @Test
+    void sourcesRoundTripAndOldJsonWithoutSourcesIsCompatible() {
+        ActionCard withSources = new ActionCard(ActionCard.Type.SOURCE_SUMMARY, "Sources",
+                "where facts came from", List.of(),
+                List.of(), "modpack_guide",
+                List.of(new CardSource("WEB", "Wiki", "https://example.com/wiki", true),
+                        new CardSource("JEI", "jei", "jei:minecraft:piston", true)));
+
+        ActionCard parsed = ActionCard.fromToolResultContent(withSources.toToolResultContent());
+
+        assertNotNull(parsed);
+        assertEquals(2, parsed.sources().size());
+        assertEquals("https://example.com/wiki", parsed.sources().get(0).sourceIdOrUrl());
+        assertTrue(parsed.sources().get(0).isWebLink());
+        assertFalse(parsed.sources().get(1).isWebLink());
+
+        ActionCard legacy = ActionCard.fromToolResultContent("""
+                {
+                  "action_card": {
+                    "type": "RECIPE",
+                    "title": "Old card",
+                    "summary": "no sources field",
+                    "facts": [],
+                    "actions": [],
+                    "source_tool": "old_tool"
+                  }
+                }
+                """);
+        assertNotNull(legacy);
+        assertTrue(legacy.sources().isEmpty());
+    }
+
+    @Test
     void toDisplayText_includesFactsAndActions() {
         ActionCard card = new ActionCard(ActionCard.Type.MATERIALS, "Missing materials",
                 "1 item is missing", List.of("minecraft:oak_log: missing 4"),

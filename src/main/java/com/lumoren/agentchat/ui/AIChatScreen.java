@@ -63,6 +63,7 @@ public class AIChatScreen extends Screen {
     private String selectedMessageUuid; // right-click selected message for recall/edit
     private String pendingEditMessageUuid; // UUID of message being deep-edited
     private java.util.Set<String> expandedReasonings = new java.util.HashSet<>(); // persist across rebuildLayout
+    private java.util.Set<String> expandedCardDetails = new java.util.HashSet<>(); // card facts/source expansion
     private boolean guideMode;
     private final ModpackGuideService guideService = new ModpackGuideService();
     private final AssistantActionExecutor actionExecutor =
@@ -118,7 +119,7 @@ public class AIChatScreen extends Screen {
                 com.lumoren.agentchat.ui.theme.MechanicalSprites.PANEL_IRON, true));
 
         // Message list
-        this.messageList = new MessageListWidget(thread, streamer, expandedReasonings);
+        this.messageList = new MessageListWidget(thread, streamer, expandedReasonings, expandedCardDetails);
         this.messageList.setOnRecall(this::onRecallMessage);
         this.messageList.setOnEdit(this::onEditMessage);
         this.messageList.setOnCopy(this::onCopyMessage);

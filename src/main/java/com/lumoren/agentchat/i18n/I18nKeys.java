@@ -201,6 +201,22 @@ public final class I18nKeys {
     /** 输入框占位符（向导模式） */
     public static final String INPUT_PLACEHOLDER_GUIDE = "agentchat.input.placeholder.guide";
 
+    // ==================== ACTION CARD UI ====================
+    public static final String CARD_TYPE_PROJECT = "agentchat.card.type.project";
+    public static final String CARD_TYPE_MATERIALS = "agentchat.card.type.materials";
+    public static final String CARD_TYPE_RECIPE = "agentchat.card.type.recipe";
+    public static final String CARD_TYPE_WAYPOINT = "agentchat.card.type.waypoint";
+    public static final String CARD_TYPE_STATUS = "agentchat.card.type.status";
+    public static final String CARD_TYPE_GUIDE_STEP = "agentchat.card.type.guide_step";
+    public static final String CARD_TYPE_DIAGNOSIS = "agentchat.card.type.diagnosis";
+    public static final String CARD_TYPE_SOURCE_SUMMARY = "agentchat.card.type.source_summary";
+    /** 展开全部事实（含参数） */
+    public static final String CARD_SHOW_ALL = "agentchat.card.show_all";
+    /** 收起事实 */
+    public static final String CARD_SHOW_LESS = "agentchat.card.show_less";
+    /** 思考过程折叠标题 */
+    public static final String REASONING_TOGGLE = "agentchat.reasoning.toggle";
+
     // ==================== PROJECT SYSTEM ====================
     /** HUD 项目进度（含参数：名称, 已完成, 总数） */
     public static final String PROJECT_HUD_PROGRESS = "agentchat.project.hud.progress";
