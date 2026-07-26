@@ -95,6 +95,8 @@
   "agentchat.card.show_all": "展开全部（%d）",
   "agentchat.card.show_less": "收起",
   "agentchat.reasoning.toggle": "思考过程",
+  "agentchat.hud.all_done": "全部完成！",
+  "agentchat.hud.no_tasks": "暂无任务",
   "agentchat.project.hud.progress": "%s（%d/%d）",
   "agentchat.project.hud.no_project": "暂无活跃项目",
   "agentchat.project.complete": "🎉 项目「%s」已完成！",

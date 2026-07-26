@@ -6,7 +6,8 @@ import com.lumoren.agentchat.model.Project;
 import com.lumoren.agentchat.model.Task;
 import com.lumoren.agentchat.model.TaskStatus;
 import com.lumoren.agentchat.persistence.ProjectManager;
-import com.lumoren.agentchat.ui.theme.ChatColors;
+import com.lumoren.agentchat.ui.theme.GuideTheme;
+import com.lumoren.agentchat.ui.theme.MechanicalSprites;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -112,7 +113,7 @@ public class ProjectHudWidget extends AbstractWidget {
         String msg = I18nHelper.translateToString(I18nKeys.PROJECT_HUD_NO_PROJECT);
         int cx = px + (pw - font.width(msg)) / 2;
         int cy = py + (ph - font.lineHeight) / 2;
-        graphics.drawString(font, msg, cx, cy, ChatColors.TEXT_DIM);
+        graphics.drawString(font, msg, cx, cy, GuideTheme.TEXT_DIM);
     }
 
     // ── Compact mode ──
@@ -130,7 +131,7 @@ public class ProjectHudWidget extends AbstractWidget {
         long total = tasks.size();
         String progress = I18nHelper.translateToString(I18nKeys.PROJECT_HUD_PROGRESS,
                 project.getName(), done, total);
-        graphics.drawString(font, progress, px + TEXT_PAD, py + 3, ChatColors.TEXT_PRIMARY);
+        graphics.drawString(font, progress, px + TEXT_PAD, py + 3, GuideTheme.TEXT_PRIMARY);
 
         // Line 2: current step (first non-DONE task) or "all done"
         Task current = tasks.stream()
@@ -144,11 +145,13 @@ public class ProjectHudWidget extends AbstractWidget {
             if (font.width(step) > maxW) {
                 step = font.plainSubstrByWidth(step, maxW - font.width("..")) + "..";
             }
-            graphics.drawString(font, step, px + TEXT_PAD, py + 15, ChatColors.TEXT_ACCENT);
+            graphics.drawString(font, step, px + TEXT_PAD, py + 15, GuideTheme.BRASS);
         } else if (total > 0) {
-            graphics.drawString(font, "\u2713 All done!", px + TEXT_PAD, py + 15, ChatColors.TASK_DONE);
+            graphics.drawString(font, I18nHelper.translateToString(I18nKeys.HUD_ALL_DONE),
+                    px + TEXT_PAD, py + 15, GuideTheme.VERDIGRIS);
         } else {
-            graphics.drawString(font, "No tasks yet", px + TEXT_PAD, py + 15, ChatColors.TEXT_DIM);
+            graphics.drawString(font, I18nHelper.translateToString(I18nKeys.HUD_NO_TASKS),
+                    px + TEXT_PAD, py + 15, GuideTheme.TEXT_DIM);
         }
     }
 
@@ -170,18 +173,21 @@ public class ProjectHudWidget extends AbstractWidget {
         // ── Header ──
         String header = I18nHelper.translateToString(I18nKeys.PROJECT_HUD_PROGRESS,
                 project.getName(), done, total);
-        graphics.drawString(font, header, px + TEXT_PAD, py + 2, ChatColors.TEXT_PRIMARY);
+        graphics.drawString(font, header, px + TEXT_PAD, py + 2, GuideTheme.TEXT_PRIMARY);
 
         // Collapse button
         int btnX = px + pw - COLLAPSE_BTN_SIZE - 2;
         int btnY = py + 1;
         boolean hoverCollapse = mx >= btnX && mx <= btnX + COLLAPSE_BTN_SIZE
                 && my >= btnY && my <= btnY + COLLAPSE_BTN_SIZE;
-        graphics.drawString(font, "\u2212", btnX + 2, btnY,
-                hoverCollapse ? ChatColors.TEXT_PRIMARY : ChatColors.TEXT_DIM);
+        if (hoverCollapse) {
+            graphics.fill(btnX, btnY, btnX + COLLAPSE_BTN_SIZE, btnY + COLLAPSE_BTN_SIZE,
+                    GuideTheme.IRON_RAISED);
+        }
+        MechanicalSprites.blitIcon(graphics, MechanicalSprites.ICON_CLOSE, btnX, btnY);
 
         int separatorY = py + EXPANDED_HEADER_HEIGHT;
-        graphics.fill(px + TEXT_PAD, separatorY, px + pw - TEXT_PAD, separatorY + 1, ChatColors.HUD_BORDER);
+        graphics.fill(px + TEXT_PAD, separatorY, px + pw - TEXT_PAD, separatorY + 1, GuideTheme.STEEL_EDGE);
 
         // ── Task list with scissor ──
         int listY = separatorY + 2;
@@ -214,47 +220,62 @@ public class ProjectHudWidget extends AbstractWidget {
             float progress = (float) scroll / maxScroll;
             int indicatorH = Math.max(8, listH * listH / totalListH);
             int indicatorY = listY + (int) (progress * (listH - indicatorH));
-            int indicatorX = px + pw - 3;
-            graphics.fill(indicatorX, indicatorY, indicatorX + 2, indicatorY + indicatorH, ChatColors.SCROLLBAR_THUMB);
+            int indicatorX = px + pw - 4;
+            graphics.fill(indicatorX, indicatorY, indicatorX + 2, indicatorY + indicatorH, GuideTheme.BRASS);
         }
     }
 
     /**
-     * Renders a single task line with status icon, description, and colour.
+     * Renders a single task line with a status square, description, and colour.
+     * Status is expressed through BOTH color and fill shape (filled = done /
+     * active, hollow = pending), never color alone.
      */
     private void renderTaskLine(GuiGraphics graphics, Task task, int x, int y, int maxW, boolean isActive) {
-        String icon;
         int color;
+        int dotColor;
         boolean strikethrough = false;
+        boolean hollowDot = false;
 
         switch (task.status()) {
             case DONE -> {
-                icon = "\u2713 ";  // check mark
-                color = ChatColors.TASK_DONE;
+                color = GuideTheme.VERDIGRIS;
+                dotColor = GuideTheme.VERDIGRIS;
                 strikethrough = true;
             }
             case BLOCKED -> {
-                icon = "\u26A0 ";  // warning
-                color = ChatColors.TASK_BLOCKED;
+                color = GuideTheme.DANGER_RED;
+                dotColor = GuideTheme.DANGER_RED;
             }
             case IN_PROGRESS -> {
-                icon = "\u25B6 ";  // play
-                color = isActive ? ChatColors.TASK_ACTIVE : ChatColors.TEXT_PRIMARY;
+                color = isActive ? GuideTheme.BRASS : GuideTheme.TEXT_PRIMARY;
+                dotColor = GuideTheme.BRASS;
             }
             default -> { // PENDING
-                icon = "\u25CB ";  // circle
-                color = isActive ? ChatColors.TASK_ACTIVE : ChatColors.TEXT_PRIMARY;
+                color = isActive ? GuideTheme.BRASS : GuideTheme.TEXT_SECONDARY;
+                dotColor = GuideTheme.STEEL_EDGE;
+                hollowDot = true;
             }
         }
 
+        // 5x5 status square
+        int dotY = y + 2;
+        if (hollowDot) {
+            graphics.fill(x, dotY, x + 5, dotY + 1, dotColor);
+            graphics.fill(x, dotY + 4, x + 5, dotY + 5, dotColor);
+            graphics.fill(x, dotY, x + 1, dotY + 5, dotColor);
+            graphics.fill(x + 4, dotY, x + 5, dotY + 5, dotColor);
+        } else {
+            graphics.fill(x, dotY, x + 5, dotY + 5, dotColor);
+        }
+
         String desc = task.description();
-        int iconW = font.width(icon);
+        int iconW = 9;
         int maxDescW = maxW - iconW;
         if (font.width(desc) > maxDescW) {
             desc = font.plainSubstrByWidth(desc, maxDescW - font.width("..")) + "..";
         }
 
-        MutableComponent line = Component.literal(icon + desc);
+        MutableComponent line = Component.literal(desc);
 
         if (strikethrough) {
             line.withStyle(Style.EMPTY
@@ -262,31 +283,22 @@ public class ProjectHudWidget extends AbstractWidget {
                     .withStrikethrough(true));
         } else if (isActive) {
             line.withStyle(Style.EMPTY
-                    .withColor(TextColor.fromRgb(ChatColors.TASK_ACTIVE))
+                    .withColor(TextColor.fromRgb(color))
                     .withBold(true));
         } else {
             line.withStyle(Style.EMPTY.withColor(TextColor.fromRgb(color)));
         }
 
-        // Use default colour = color so non-styled text substrings render correctly
-        graphics.drawString(font, line, x, y, color);
+        graphics.drawString(font, line, x + iconW, y, color);
     }
 
     // ── Common helpers ──
 
     /**
-     * Fills the widget background and draws a 1-px border.
+     * Fills the widget background with the iron panel skin.
      */
     private void fillBackground(GuiGraphics graphics, int x, int y, int w, int h) {
-        graphics.fill(x, y, x + w, y + h, ChatColors.HUD_BG);
-        // Top
-        graphics.fill(x, y, x + w, y + 1, ChatColors.HUD_BORDER);
-        // Bottom
-        graphics.fill(x, y + h - 1, x + w, y + h, ChatColors.HUD_BORDER);
-        // Left
-        graphics.fill(x, y, x + 1, y + h, ChatColors.HUD_BORDER);
-        // Right
-        graphics.fill(x + w - 1, y, x + w, y + h, ChatColors.HUD_BORDER);
+        MechanicalSprites.blitPanel(graphics, MechanicalSprites.PANEL_IRON, x, y, w, h);
     }
 
     // ========================================================================

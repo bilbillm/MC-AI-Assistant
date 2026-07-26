@@ -216,6 +216,10 @@ public final class I18nKeys {
     public static final String CARD_SHOW_LESS = "agentchat.card.show_less";
     /** 思考过程折叠标题 */
     public static final String REASONING_TOGGLE = "agentchat.reasoning.toggle";
+    /** HUD：全部完成 */
+    public static final String HUD_ALL_DONE = "agentchat.hud.all_done";
+    /** HUD：暂无任务 */
+    public static final String HUD_NO_TASKS = "agentchat.hud.no_tasks";
 
     // ==================== PROJECT SYSTEM ====================
     /** HUD 项目进度（含参数：名称, 已完成, 总数） */

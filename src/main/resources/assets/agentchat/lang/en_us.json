@@ -95,6 +95,8 @@
   "agentchat.card.show_all": "Show all (%d)",
   "agentchat.card.show_less": "Show less",
   "agentchat.reasoning.toggle": "Reasoning",
+  "agentchat.hud.all_done": "All done!",
+  "agentchat.hud.no_tasks": "No tasks yet",
   "agentchat.project.hud.progress": "%s (%d/%d)",
   "agentchat.project.hud.no_project": "No active project",
   "agentchat.project.complete": "🎉 Project \"%s\" completed!",
