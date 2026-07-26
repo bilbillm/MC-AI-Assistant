@@ -2,7 +2,6 @@ package com.lumoren.agentchat;
 
 import com.lumoren.agentchat.ui.ConfigScreen;
 import com.mojang.logging.LogUtils;
-import mezz.jei.api.runtime.IJeiRuntime;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -19,10 +18,14 @@ public class AgentChat {
     public static ModContainer MOD_CONTAINER;
 
     /**
-     * JEI runtime reference, set by {@link com.lumoren.agentchat.client.JeiBridge}
-     * when JEI is installed. {@code null} when JEI is absent.
+     * JEI runtime reference (an {@code IJeiRuntime}), set by
+     * {@link com.lumoren.agentchat.client.JeiBridge} when JEI is installed.
+     * Typed {@link Object} on purpose: JEI is an optional compileOnly
+     * dependency, so no always-loaded class may reference mezz.jei types.
+     * Only {@code tools.JeiLookup} (loaded strictly behind {@link #hasJei()})
+     * casts this to the real type.
      */
-    public static IJeiRuntime jeiRuntime = null;
+    public static Object jeiRuntime = null;
 
     /**
      * @return {@code true} when JEI is installed and its runtime is available

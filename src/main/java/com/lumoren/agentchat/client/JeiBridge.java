@@ -1,24 +1,18 @@
 package com.lumoren.agentchat.client;
 
 import com.lumoren.agentchat.AgentChat;
-import com.lumoren.agentchat.ai.GameDataAccess;
+import com.lumoren.agentchat.tools.JeiLookup;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
-import mezz.jei.api.constants.VanillaTypes;
-import mezz.jei.api.recipe.IFocus;
-import mezz.jei.api.recipe.IFocusFactory;
-import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 /**
- * JEI plugin bridge — caches the JEI runtime reference so
- * {@link com.lumoren.agentchat.tools.RecipeTool} can use JEI for
- * rich recipe lookup. Falls back to vanilla RecipeManager when JEI
- * is not installed.
+ * JEI plugin bridge — caches the JEI runtime reference (as {@link Object}
+ * in {@link AgentChat#jeiRuntime}, since JEI is compileOnly) so recipe
+ * tools can use JEI for rich lookup. Loaded by JEI itself, only when JEI
+ * is installed, so referencing mezz.jei types here is safe.
+ * GUI open calls delegate to {@link JeiLookup}.
  */
 @JeiPlugin
 public class JeiBridge implements IModPlugin {
@@ -30,13 +24,13 @@ public class JeiBridge implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime runtime) {
         AgentChat.jeiRuntime = runtime;
-        AgentChat.LOGGER.info("JEI runtime available — RecipeTool will use JEI-powered lookups.");
+        AgentChat.LOGGER.info("JEI runtime available — recipe tools will use JEI-powered lookups.");
     }
 
     @Override
     public void onRuntimeUnavailable() {
         AgentChat.jeiRuntime = null;
-        AgentChat.LOGGER.info("JEI runtime removed — RecipeTool will use vanilla fallback.");
+        AgentChat.LOGGER.info("JEI runtime removed — recipe tools will use vanilla fallback.");
     }
 
     /**
@@ -46,7 +40,7 @@ public class JeiBridge implements IModPlugin {
      * @return {@code true} when the GUI was shown
      */
     public static boolean showRecipes(ResourceLocation itemId) {
-        return show(itemId, RecipeIngredientRole.OUTPUT);
+        return JeiLookup.showRecipesGui(itemId);
     }
 
     /**
@@ -56,27 +50,6 @@ public class JeiBridge implements IModPlugin {
      * @return {@code true} when the GUI was shown
      */
     public static boolean showUsages(ResourceLocation itemId) {
-        return show(itemId, RecipeIngredientRole.INPUT);
-    }
-
-    private static boolean show(ResourceLocation itemId, RecipeIngredientRole role) {
-        IJeiRuntime runtime = AgentChat.jeiRuntime;
-        if (runtime == null || itemId == null) {
-            return false;
-        }
-        Item item = GameDataAccess.lookupItem(itemId);
-        if (item == null || item == Items.AIR) {
-            return false;
-        }
-        try {
-            IFocusFactory focusFactory = runtime.getJeiHelpers().getFocusFactory();
-            ItemStack stack = item.getDefaultInstance();
-            IFocus<ItemStack> focus = focusFactory.createFocus(role, VanillaTypes.ITEM_STACK, stack);
-            runtime.getRecipesGui().show(focus);
-            return true;
-        } catch (RuntimeException e) {
-            AgentChat.LOGGER.warn("JEI could not open {} for {}", role, itemId);
-            return false;
-        }
+        return JeiLookup.showUsagesGui(itemId);
     }
 }

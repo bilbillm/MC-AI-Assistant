@@ -16,12 +16,14 @@ An AI chat assistant mod for Minecraft (NeoForge ${minecraft_version})
 
 [[dependencies.agentchat]]
 modId="minecraft"
-mandatory=true
+type="required"
 versionRange="[${minecraft_version},1.22)"
 ordering="NONE"
 side="CLIENT"
 
 [[dependencies.agentchat]]
 modId="jei"
-mandatory=false
+type="optional"
+versionRange="[19,)"
 ordering="AFTER"
+side="CLIENT"

@@ -7,23 +7,10 @@ import com.lumoren.agentchat.ai.GameDataAccess;
 import com.lumoren.agentchat.model.RecipeResult;
 import com.lumoren.agentchat.model.ToolDefinition;
 import com.lumoren.agentchat.model.ToolResult;
-import mezz.jei.api.constants.VanillaTypes;
-import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.api.recipe.IFocus;
-import mezz.jei.api.recipe.IFocusFactory;
-import mezz.jei.api.recipe.IRecipeManager;
-import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.recipe.category.IRecipeCategory;
-import mezz.jei.api.runtime.IIngredientManager;
-import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Tool to look up crafting recipes for an item by name.
@@ -31,6 +18,10 @@ import java.util.stream.Collectors;
  * Uses JEI runtime when available for comprehensive recipe data
  * (including all recipe types, usages, and tags). Falls back to vanilla
  * {@link GameDataAccess#getRecipesForOutput} when JEI is not installed.
+ * <p>
+ * JEI is a compileOnly dependency, so this class must not reference any
+ * mezz.jei types directly — all JEI access lives in {@link JeiLookup},
+ * which is only loaded behind {@link AgentChat#hasJei()}.
  */
 public class RecipeTool implements GameTool {
 
@@ -103,97 +94,31 @@ public class RecipeTool implements GameTool {
 
     /**
      * JEI-based forward lookup: what recipes produce {@code itemId} as output?
+     * <p>
+     * Callers must guard with {@link AgentChat#hasJei()} before calling so
+     * that {@link JeiLookup} (which references mezz.jei types) is only
+     * loaded when JEI is actually installed.
      *
      * @param itemId the target item
      * @return formatted recipe text, or {@code null} when JEI is not available
      */
-    @SuppressWarnings("unchecked")
     public static String lookupRecipesJEI(ResourceLocation itemId) {
         if (!AgentChat.hasJei()) return null;
-
-        IJeiRuntime runtime = AgentChat.jeiRuntime;
-        IFocusFactory focusFactory = runtime.getJeiHelpers().getFocusFactory();
-        IRecipeManager recipeManager = runtime.getRecipeManager();
-
-        ItemStack stack = makeItemStack(itemId);
-        if (stack == null) return null;
-
-        IFocus<ItemStack> focus = focusFactory.createFocus(
-                RecipeIngredientRole.OUTPUT, VanillaTypes.ITEM_STACK, stack);
-
-        var categories = recipeManager.createRecipeCategoryLookup()
-                .limitFocus(Collections.singletonList(focus))
-                .get()
-                .toList();
-
-        if (categories.isEmpty()) {
-            // JEI found nothing — signal caller to try vanilla fallback
-            return null;
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== Recipes producing ").append(itemId).append(" ===\n");
-
-        for (IRecipeCategory<?> category : categories) {
-            sb.append("\n[").append(category.getTitle().getString()).append("]\n");
-            var recipes = recipeManager.createRecipeLookup(category.getRecipeType())
-                    .limitFocus(Collections.singletonList(focus))
-                    .get()
-                    .toList();
-
-            for (Object recipe : recipes) {
-                sb.append("  - ").append(formatRecipeDetail(recipe)).append("\n");
-            }
-        }
-
-        return sb.toString();
+        return JeiLookup.lookupRecipes(itemId);
     }
 
     /**
      * JEI-based reverse lookup: what recipes use {@code itemId} as an ingredient?
+     * <p>
+     * Same {@link AgentChat#hasJei()} guard requirement as
+     * {@link #lookupRecipesJEI}.
      *
      * @param itemId the target item used as input
      * @return formatted usage text, or {@code null} when JEI is not available
      */
-    @SuppressWarnings("unchecked")
     public static String lookupUsagesJEI(ResourceLocation itemId) {
         if (!AgentChat.hasJei()) return null;
-
-        IJeiRuntime runtime = AgentChat.jeiRuntime;
-        IFocusFactory focusFactory = runtime.getJeiHelpers().getFocusFactory();
-        IRecipeManager recipeManager = runtime.getRecipeManager();
-
-        ItemStack stack = makeItemStack(itemId);
-        if (stack == null) return null;
-
-        IFocus<ItemStack> focus = focusFactory.createFocus(
-                RecipeIngredientRole.INPUT, VanillaTypes.ITEM_STACK, stack);
-
-        var categories = recipeManager.createRecipeCategoryLookup()
-                .limitFocus(Collections.singletonList(focus))
-                .get()
-                .toList();
-
-        if (categories.isEmpty()) {
-            return null;
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== Recipes using ").append(itemId).append(" as input ===\n");
-
-        for (IRecipeCategory<?> category : categories) {
-            sb.append("\n[").append(category.getTitle().getString()).append("]\n");
-            var recipes = recipeManager.createRecipeLookup(category.getRecipeType())
-                    .limitFocus(Collections.singletonList(focus))
-                    .get()
-                    .toList();
-
-            for (Object recipe : recipes) {
-                sb.append("  - ").append(formatRecipeDetail(recipe)).append("\n");
-            }
-        }
-
-        return sb.toString();
+        return JeiLookup.lookupUsages(itemId);
     }
 
     /**
@@ -204,16 +129,7 @@ public class RecipeTool implements GameTool {
      */
     public static String getItemTags(ResourceLocation itemId) {
         if (!AgentChat.hasJei()) return "";
-
-        IIngredientManager ingredientManager = AgentChat.jeiRuntime.getIngredientManager();
-        IIngredientHelper<ItemStack> helper = ingredientManager.getIngredientHelper(VanillaTypes.ITEM_STACK);
-        ItemStack stack = makeItemStack(itemId);
-        if (stack == null) return "";
-
-        Set<ResourceLocation> tags = helper.getTagStream(stack).collect(Collectors.toSet());
-        return tags.stream()
-                .map(ResourceLocation::toString)
-                .collect(Collectors.joining(", "));
+        return JeiLookup.getItemTags(itemId);
     }
 
     // ──────────────────────────────────────────────
@@ -221,30 +137,14 @@ public class RecipeTool implements GameTool {
     // ──────────────────────────────────────────────
 
     /**
-     * Creates an {@link ItemStack} from a {@link ResourceLocation} via
-     * {@link GameDataAccess}. Returns {@code null} when the item cannot
-     * be found.
-     */
-    private static ItemStack makeItemStack(ResourceLocation itemId) {
-        try {
-            net.minecraft.world.item.Item item = GameDataAccess.lookupItem(itemId);
-            if (item == null || item == net.minecraft.world.item.Items.AIR) {
-                return null;
-            }
-            return new ItemStack(item);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * Formats a JEI recipe object into a human-readable string showing inputs → outputs.
+     * Formats a recipe object into a human-readable string showing inputs → outputs.
      * <p>
-     * Attempts structured extraction when the recipe is a vanilla
+     * Package-private so {@link JeiLookup} can reuse it. Attempts structured
+     * extraction when the recipe is a vanilla
      * {@link net.minecraft.world.item.crafting.Recipe} or {@code RecipeHolder}.
      * Falls back to {@code toString()} truncated to 200 chars.
      */
-    private static String formatRecipeDetail(Object recipe) {
+    static String formatRecipeDetail(Object recipe) {
         // Unwrap RecipeHolder
         if (recipe instanceof net.minecraft.world.item.crafting.RecipeHolder<?> holder) {
             return formatRecipeDetail(holder.value());
