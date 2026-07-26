@@ -190,6 +190,16 @@ public final class I18nKeys {
     public static final String TOOLTIP_EDIT = "agentchat.tooltip.edit";
     /** 工具提示：撤回 */
     public static final String TOOLTIP_RECALL = "agentchat.tooltip.recall";
+    /** 工具提示：关闭 */
+    public static final String TOOLTIP_CLOSE = "agentchat.tooltip.close";
+    /** 工具提示：对话历史 */
+    public static final String TOOLTIP_HISTORY = "agentchat.tooltip.history";
+    /** 侧栏标题：对话历史 */
+    public static final String SIDEBAR_HISTORY = "agentchat.sidebar.history";
+    /** 线程消息数（含参数） */
+    public static final String THREAD_MESSAGES = "agentchat.thread.messages";
+    /** 输入框占位符（向导模式） */
+    public static final String INPUT_PLACEHOLDER_GUIDE = "agentchat.input.placeholder.guide";
 
     // ==================== PROJECT SYSTEM ====================
     /** HUD 项目进度（含参数：名称, 已完成, 总数） */

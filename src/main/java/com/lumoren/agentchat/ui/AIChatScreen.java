@@ -21,10 +21,8 @@ import com.lumoren.agentchat.persistence.ConversationManager;
 import com.lumoren.agentchat.persistence.ProjectManager;
 import com.lumoren.agentchat.ui.action.ActionExecutionResult;
 import com.lumoren.agentchat.ui.action.AssistantActionExecutor;
-import com.lumoren.agentchat.ui.theme.ChatColors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -42,11 +40,6 @@ import java.util.regex.Pattern;
  */
 public class AIChatScreen extends Screen {
 
-    private static final int PADDING = 8;
-    private static final int INPUT_HEIGHT = 20;
-    private static final int BUTTON_WIDTH = 50;
-    private static final int TITLE_HEIGHT = 20;
-
     private ConversationThread thread;
     private StreamingChatRenderer streamer;
     private final AIChatService chatService;
@@ -54,11 +47,10 @@ public class AIChatScreen extends Screen {
     private ThreadListWidget threadList;
     private MessageListWidget messageList;
     private EditBox inputField;
-    private Button sendButton;
-    private Button newChatButton;
-    private Button guideModeButton;
-    private Button configButton;
-    private Button deleteButton;
+    private com.lumoren.agentchat.ui.widget.MechanicalIconButton sendButton;
+    private com.lumoren.agentchat.ui.widget.ModeSegmentedWidget modeSegmented;
+    private com.lumoren.agentchat.ui.widget.SourceRailWidget sourceRail;
+    private com.lumoren.agentchat.ui.layout.ChatLayout currentLayout;
     private boolean rebuilding;
     private boolean pendingCollapsed;
     private int savedScroll = -1; // preserve scroll across rebuild
@@ -111,41 +103,19 @@ public class AIChatScreen extends Screen {
                 .sorted(Comparator.comparing(ConversationThread::getUpdatedAt).reversed()).toList()
                 : List.<ConversationThread>of();
 
-        // Sidebar — collapse triggers rebuildLayout()
-        this.threadList = new ThreadListWidget(this::switchToThread, this::rebuildLayout);
-        this.threadList.refresh(threads, thread.getId(), height, font);
-        if (globalSidebarCollapsed || pendingCollapsed) {
-            // Collapse without triggering rebuildLayout — this init() already calculates
-            // the correct layout. Triggering rebuildLayout here causes a double-init cycle
-            // that leaves stale rendering state, producing text overlap artifacts.
-            threadList.setCollapsed(true, false);
-            pendingCollapsed = false;
-        }
-        this.addRenderableWidget(threadList);
+        boolean expanded = !(globalSidebarCollapsed || pendingCollapsed);
+        pendingCollapsed = false;
+        int tier = com.lumoren.agentchat.ui.layout.ChatLayout.tierOf(width);
+        int toolbarButtons = tier == com.lumoren.agentchat.ui.layout.ChatLayout.TIER_NARROW ? 3 : 4;
+        int segmentedWidth = measureSegmentedWidth();
+        com.lumoren.agentchat.ui.layout.ChatLayout layout = com.lumoren.agentchat.ui.layout.ChatLayout
+                .compute(width, height, expanded, segmentedWidth, toolbarButtons);
+        this.currentLayout = layout;
 
-        int sidebarW = threadList.getEffectiveWidth();
-        int chatLeft = PADDING + sidebarW + PADDING;
-        int chatRight = width - PADDING;
-        int listTop = PADDING + TITLE_HEIGHT + PADDING;
-        int listBottom = height - PADDING - INPUT_HEIGHT - PADDING - 20;
-
-        // Title
-        this.addRenderableWidget(new LabelWidget(chatLeft, PADDING + 2,
-                I18nHelper.translateToString(I18nKeys.TITLE), ChatColors.TEXT_PRIMARY, font));
-
-        // New Chat, Config & Delete buttons (right side of title bar)
-        this.newChatButton = this.addRenderableWidget(Button.builder(
-                        I18nHelper.translate(I18nKeys.BUTTON_NEW_THREAD), this::onNewChat)
-                .bounds(chatRight - 245, PADDING, 55, 18).build());
-        this.guideModeButton = this.addRenderableWidget(Button.builder(
-                        guideModeLabel(), this::onToggleGuideMode)
-                .bounds(chatRight - 185, PADDING, 55, 18).build());
-        this.configButton = this.addRenderableWidget(Button.builder(
-                        I18nHelper.translate(I18nKeys.BUTTON_CONFIG), this::onOpenConfig)
-                .bounds(chatRight - 125, PADDING, 40, 18).build());
-        this.deleteButton = this.addRenderableWidget(Button.builder(
-                        I18nHelper.translate(I18nKeys.BUTTON_DELETE), this::onDeleteThread)
-                .bounds(chatRight - 80, PADDING, 40, 18).build());
+        // Background panel (decorative, non-interactive)
+        this.addRenderableWidget(new com.lumoren.agentchat.ui.widget.MechanicalPanelWidget(
+                layout.contentX(), layout.contentY(), layout.contentW(), layout.contentH(),
+                com.lumoren.agentchat.ui.theme.MechanicalSprites.PANEL_IRON, true));
 
         // Message list
         this.messageList = new MessageListWidget(thread, streamer, expandedReasonings);
@@ -153,31 +123,167 @@ public class AIChatScreen extends Screen {
         this.messageList.setOnEdit(this::onEditMessage);
         this.messageList.setOnCopy(this::onCopyMessage);
         this.messageList.setOnAction(this::onAssistantAction);
-        this.messageList.setBounds(chatLeft, listTop, chatRight - chatLeft, listBottom - listTop, font);
+        this.messageList.setBounds(layout.messageX(), layout.messageY(),
+                layout.messageW(), layout.messageH(), font);
         this.messageList.setScrollOffset(savedMessageScroll);
         this.addRenderableWidget(messageList);
 
-        // Input + Send
-        int sendX = chatRight - BUTTON_WIDTH;
-        int inputY = height - PADDING - 20;
-        this.sendButton = this.addRenderableWidget(Button.builder(
-                        I18nHelper.translate(I18nKeys.BUTTON_SEND), this::onSend)
-                .bounds(sendX, inputY, BUTTON_WIDTH, 20).build());
-        this.sendButton.active = false;
+        // Sidebar — renders after the message list so the overlay drawer
+        // (compact/narrow tiers) draws on top. Collapse triggers rebuildLayout().
+        this.threadList = new ThreadListWidget(this::switchToThread, this::rebuildLayout);
+        this.threadList.refresh(threads, thread.getId(), font);
+        this.threadList.setBounds(layout.sidebarX(), layout.sidebarY(),
+                layout.sidebarW(), layout.sidebarH());
+        this.threadList.setCollapsed(!expanded, false);
+        this.threadList.visible = layout.sidebarW() > 0;
+        this.addRenderableWidget(threadList);
 
-        this.inputField = new EditBox(font, chatLeft, inputY,
-                sendX - chatLeft - PADDING, 20, Component.literal(""));
+        // Title
+        this.addRenderableWidget(new LabelWidget(layout.titleX(),
+                layout.titleY() + (layout.titleH() - font.lineHeight) / 2,
+                I18nHelper.translateToString(I18nKeys.TITLE),
+                com.lumoren.agentchat.ui.theme.GuideTheme.TEXT_PRIMARY, font));
+
+        // Mode segmented control (Chat | Guide)
+        this.modeSegmented = this.addRenderableWidget(
+                new com.lumoren.agentchat.ui.widget.ModeSegmentedWidget(font,
+                        layout.segmentedX(), layout.segmentedY(),
+                        layout.segmentedW(), layout.segmentedH(),
+                        I18nHelper.translate(I18nKeys.MODE_CHAT),
+                        I18nHelper.translate(I18nKeys.MODE_GUIDE),
+                        guideMode ? com.lumoren.agentchat.ui.widget.ModeSegmentedWidget.Mode.GUIDE
+                                : com.lumoren.agentchat.ui.widget.ModeSegmentedWidget.Mode.CHAT,
+                        this::onModeChanged));
+
+        // Toolbar icon buttons (right-aligned)
+        int bx = layout.toolbarX();
+        if (tier == com.lumoren.agentchat.ui.layout.ChatLayout.TIER_NARROW) {
+            bx = addToolbarIcon(bx, com.lumoren.agentchat.ui.theme.MechanicalSprites.ICON_HISTORY,
+                    I18nKeys.TOOLTIP_HISTORY, b -> onToggleSidebar());
+        } else {
+            bx = addToolbarIcon(bx, com.lumoren.agentchat.ui.theme.MechanicalSprites.ICON_PLUS,
+                    I18nKeys.TOOLTIP_NEW_THREAD, b -> onNewChat());
+        }
+        bx = addToolbarIcon(bx, com.lumoren.agentchat.ui.theme.MechanicalSprites.ICON_SETTINGS,
+                I18nKeys.TOOLTIP_CONFIG, b -> onOpenConfig());
+        if (tier != com.lumoren.agentchat.ui.layout.ChatLayout.TIER_NARROW) {
+            bx = addToolbarIcon(bx, com.lumoren.agentchat.ui.theme.MechanicalSprites.ICON_TRASH,
+                    I18nKeys.TOOLTIP_DELETE_THREAD, com.lumoren.agentchat.ui.theme.GuideTheme.DANGER_RED,
+                    b -> onDeleteThread());
+        }
+        addToolbarIcon(bx, com.lumoren.agentchat.ui.theme.MechanicalSprites.ICON_CLOSE,
+                I18nKeys.TOOLTIP_CLOSE, b -> onClose());
+
+        // Source status rail
+        if (layout.sourceRailVisible()) {
+            this.sourceRail = new com.lumoren.agentchat.ui.widget.SourceRailWidget(font,
+                    layout.sourceRailX(), layout.sourceRailY(),
+                    layout.contentW() - 8, layout.sourceRailH());
+            this.sourceRail.setSources(computeSourceStatuses());
+            this.sourceRail.setLoading(activeGuideRequestId >= 0);
+            this.addRenderableWidget(sourceRail);
+        } else {
+            this.sourceRail = null;
+        }
+
+        // Input console: inset plate + borderless editbox + send icon
+        this.addRenderableWidget(new com.lumoren.agentchat.ui.widget.MechanicalPanelWidget(
+                layout.contentX(), layout.inputY(), layout.contentW(), layout.inputH(),
+                com.lumoren.agentchat.ui.theme.MechanicalSprites.PANEL_INSET, false));
+        this.sendButton = new com.lumoren.agentchat.ui.widget.MechanicalIconButton(font,
+                layout.sendX(), layout.sendY(), layout.sendH(), layout.sendH(),
+                com.lumoren.agentchat.ui.theme.MechanicalSprites.ICON_SEND,
+                I18nHelper.translate(I18nKeys.TOOLTIP_SEND),
+                com.lumoren.agentchat.ui.theme.GuideTheme.BRASS_HIGHLIGHT,
+                b -> onSend());
+        this.sendButton.active = false;
+        this.addRenderableWidget(sendButton);
+
+        this.inputField = new EditBox(font, layout.inputX(), layout.inputY(),
+                layout.inputW(), 18, Component.literal(""));
+        this.inputField.setBordered(false);
+        this.inputField.setTextColor(com.lumoren.agentchat.ui.theme.GuideTheme.TEXT_PRIMARY);
         this.inputField.setMaxLength(512);
-        this.inputField.setHint(I18nHelper.translate(I18nKeys.INPUT_PLACEHOLDER));
+        this.inputField.setHint(I18nHelper.translate(inputPlaceholderKey()));
         this.inputField.setResponder(this::onInputChanged);
         this.addRenderableWidget(inputField);
         this.setInitialFocus(inputField);
     }
 
+    private String inputPlaceholderKey() {
+        return guideMode ? I18nKeys.INPUT_PLACEHOLDER_GUIDE : I18nKeys.INPUT_PLACEHOLDER;
+    }
+
+    private int measureSegmentedWidth() {
+        int chat = font.width(I18nHelper.translate(I18nKeys.MODE_CHAT));
+        int guide = font.width(I18nHelper.translate(I18nKeys.MODE_GUIDE));
+        return Math.max(72, Math.max(chat, guide) * 2 + 28);
+    }
+
+    private int addToolbarIcon(int x, net.minecraft.resources.ResourceLocation icon, String tooltipKey,
+                               com.lumoren.agentchat.ui.widget.MechanicalIconButton.OnPress onPress) {
+        return addToolbarIcon(x, icon, tooltipKey,
+                com.lumoren.agentchat.ui.theme.GuideTheme.BRASS_HIGHLIGHT, onPress);
+    }
+
+    private int addToolbarIcon(int x, net.minecraft.resources.ResourceLocation icon, String tooltipKey,
+                               int hoverColor,
+                               com.lumoren.agentchat.ui.widget.MechanicalIconButton.OnPress onPress) {
+        this.addRenderableWidget(new com.lumoren.agentchat.ui.widget.MechanicalIconButton(font,
+                x, currentLayout.toolbarY(), currentLayout.toolbarH(), currentLayout.toolbarH(),
+                icon, I18nHelper.translate(tooltipKey), hoverColor, onPress));
+        return x + currentLayout.toolbarH() + 2;
+    }
+
+    private java.util.List<com.lumoren.agentchat.ui.widget.SourceRailWidget.SourceStatus> computeSourceStatuses() {
+        Minecraft mc = Minecraft.getInstance();
+        boolean local = mc != null && mc.player != null;
+        boolean jei = com.lumoren.agentchat.AgentChat.hasJei();
+        boolean ftb = isModLoaded("ftbquests");
+        boolean patchouli = isModLoaded("patchouli");
+        boolean web = ConfigManager.getInstance().isWebKnowledgeEnabled();
+        return java.util.List.of(
+                sourceStatus("LOCAL", local),
+                sourceStatus("JEI", jei),
+                sourceStatus("FTB", ftb),
+                sourceStatus("PATCH", patchouli),
+                sourceStatus("WEB", web));
+    }
+
+    private static com.lumoren.agentchat.ui.widget.SourceRailWidget.SourceStatus sourceStatus(
+            String label, boolean available) {
+        return new com.lumoren.agentchat.ui.widget.SourceRailWidget.SourceStatus(label,
+                available ? com.lumoren.agentchat.ui.widget.SourceRailWidget.Status.AVAILABLE
+                        : com.lumoren.agentchat.ui.widget.SourceRailWidget.Status.DISABLED);
+    }
+
+    private static boolean isModLoaded(String modId) {
+        try {
+            return net.neoforged.fml.ModList.get() != null && net.neoforged.fml.ModList.get().isLoaded(modId);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private void onModeChanged(com.lumoren.agentchat.ui.widget.ModeSegmentedWidget.Mode mode) {
+        // Mode is a session-only UI state; never pollute the persisted
+        // conversation history with mode-switch system messages.
+        this.guideMode = mode == com.lumoren.agentchat.ui.widget.ModeSegmentedWidget.Mode.GUIDE;
+        if (inputField != null) {
+            inputField.setHint(I18nHelper.translate(inputPlaceholderKey()));
+        }
+    }
+
+    private void onToggleSidebar() {
+        globalSidebarCollapsed = !globalSidebarCollapsed;
+        pendingCollapsed = globalSidebarCollapsed;
+        rebuildLayout();
+    }
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.fill(0, 0, width, height, ChatColors.BG_OVERLAY);
+        graphics.fill(0, 0, width, height, com.lumoren.agentchat.ui.theme.GuideTheme.SCRIM);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -225,16 +331,37 @@ public class AIChatScreen extends Screen {
 
     private void refreshThreadList() {
         var mgr = ConversationManager.getInstance();
-        if (mgr != null) {
+        if (mgr != null && threadList != null) {
             threadList.refresh(mgr.getAllThreads().stream()
                     .sorted(Comparator.comparing(ConversationThread::getUpdatedAt).reversed()).toList(),
-                    thread.getId(), height, font);
+                    thread.getId(), font);
         }
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        // Overlay drawer: clicks inside it go straight to the list (the
+        // message list overlaps its bounds on compact/narrow tiers), clicks
+        // outside dismiss it.
+        if (threadList != null && threadList.visible && isSidebarOverlayOpen()) {
+            boolean inside = mx >= threadList.getX() && mx <= threadList.getX() + threadList.getWidth()
+                    && my >= threadList.getY() && my <= threadList.getY() + threadList.getHeight();
+            if (inside) {
+                if (threadList.mouseClicked(mx, my, button)) {
+                    return true;
+                }
+            } else {
+                onToggleSidebar();
+                return true;
+            }
+        }
         return super.mouseClicked(mx, my, button);
+    }
+
+    private boolean isSidebarOverlayOpen() {
+        return currentLayout != null
+                && currentLayout.tier() != com.lumoren.agentchat.ui.layout.ChatLayout.TIER_WIDE
+                && !globalSidebarCollapsed;
     }
 
     @Override
@@ -267,12 +394,12 @@ public class AIChatScreen extends Screen {
         Minecraft.getInstance().setScreen(null);
     }
 
-    private void onSend(Button b) {
+    private void onSend() {
         String text = inputField.getValue().strip();
         if (!text.isEmpty()) sendMessage(text);
     }
 
-    private void onNewChat(Button b) {
+    private void onNewChat() {
         cancelPendingGuideRequest();
         sending = false;
         var mgr = ConversationManager.getInstance();
@@ -288,25 +415,13 @@ public class AIChatScreen extends Screen {
         refreshThreadList();
     }
 
-    private void onOpenConfig(Button b) {
+    private void onOpenConfig() {
         var mgr = ConversationManager.getInstance();
         if (mgr != null) mgr.save();
         Minecraft.getInstance().setScreen(new ConfigScreen(this));
     }
 
-    private void onToggleGuideMode(Button b) {
-        guideMode = !guideMode;
-        b.setMessage(guideModeLabel());
-        // Mode is a session-only UI state; never pollute the persisted
-        // conversation history with mode-switch system messages.
-    }
-
-    private Component guideModeLabel() {
-        return I18nHelper.translate(guideMode
-                ? I18nKeys.BUTTON_GUIDE_MODE : I18nKeys.BUTTON_CHAT_MODE);
-    }
-
-    private void onDeleteThread(Button b) {
+    private void onDeleteThread() {
         var mgr = ConversationManager.getInstance();
         if (mgr == null) return;
         if (thread != null) {
@@ -455,6 +570,9 @@ public class AIChatScreen extends Screen {
             // background executor, then completeSend on the main thread.
             ConversationThread requestThread = thread;
             boolean webEnabled = ConfigManager.getInstance().isWebKnowledgeEnabled();
+            if (sourceRail != null) {
+                sourceRail.setLoading(true);
+            }
             activeGuideRequestId = guideCoordinator.request(Minecraft.getInstance(), text, guideMode,
                     webEnabled, new com.lumoren.agentchat.guide.GuideRequestCoordinator.Callback() {
                         @Override
@@ -493,6 +611,9 @@ public class AIChatScreen extends Screen {
         if (requestId >= 0 && requestId != activeGuideRequestId) return; // superseded
         if (thread != requestThread) return; // thread switched while gathering
         activeGuideRequestId = -1;
+        if (sourceRail != null) {
+            sourceRail.setLoading(false);
+        }
 
         List<ChatMessage> history = thread.getMessages().subList(0, thread.getMessages().size() - 1);
 

@@ -1,7 +1,9 @@
 package com.lumoren.agentchat.ui;
 
+import com.lumoren.agentchat.i18n.I18nHelper;
+import com.lumoren.agentchat.i18n.I18nKeys;
 import com.lumoren.agentchat.model.ConversationThread;
-import com.lumoren.agentchat.ui.theme.ChatColors;
+import com.lumoren.agentchat.ui.theme.GuideTheme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -36,11 +38,11 @@ public class ThreadItemWidget extends AbstractWidget {
 
         // Background
         if (isCurrent) {
-            graphics.fill(px, py, px + pw, py + ITEM_HEIGHT - 2, ChatColors.THREAD_ITEM_HOVER);
+            graphics.fill(px, py, px + pw, py + ITEM_HEIGHT - 2, GuideTheme.IRON_RAISED);
+            graphics.fill(px, py + 2, px + 2, py + ITEM_HEIGHT - 4, GuideTheme.BRASS);
         } else if (hovered) {
-            graphics.fill(px, py, px + pw, py + ITEM_HEIGHT - 2, 0xCC_334155);
-            // Left accent bar on hover
-            graphics.fill(px, py + 2, px + 2, py + ITEM_HEIGHT - 4, ChatColors.TEXT_ACCENT);
+            graphics.fill(px, py, px + pw, py + ITEM_HEIGHT - 2, GuideTheme.IRON_INSET);
+            graphics.fill(px, py + 2, px + 2, py + ITEM_HEIGHT - 4, GuideTheme.STEEL_EDGE);
         }
 
         // Name (truncate if too long)
@@ -48,12 +50,12 @@ public class ThreadItemWidget extends AbstractWidget {
         if (font.width(name) > pw - 14) {
             name = font.plainSubstrByWidth(name, pw - 18) + "..";
         }
-        int textColor = isCurrent ? ChatColors.TEXT_PRIMARY : ChatColors.TEXT_SECONDARY;
+        int textColor = isCurrent ? GuideTheme.TEXT_PRIMARY : GuideTheme.TEXT_SECONDARY;
         graphics.drawString(font, name, px + 6, py + 2, textColor);
 
         // Message count
-        graphics.drawString(font, thread.messageCount() + " msgs",
-                px + 6, py + 15, ChatColors.TEXT_DIM);
+        String count = I18nHelper.translateToString(I18nKeys.THREAD_MESSAGES, thread.messageCount());
+        graphics.drawString(font, count, px + 6, py + 15, GuideTheme.TEXT_DIM);
     }
 
     @Override

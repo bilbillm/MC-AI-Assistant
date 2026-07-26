@@ -41,6 +41,8 @@ public final class MechanicalSprites {
     public static final ResourceLocation ICON_TASK = icon("task");
     public static final ResourceLocation ICON_SOURCE = icon("source");
     public static final ResourceLocation ICON_WARNING = icon("warning");
+    public static final ResourceLocation ICON_CLOSE = icon("close");
+    public static final ResourceLocation ICON_HISTORY = icon("history");
 
     public static final ResourceLocation[] SPINNER_GEARS = {
             icon("spinner_gear_0"), icon("spinner_gear_1"),
@@ -54,6 +56,7 @@ public final class MechanicalSprites {
             ICON_SEND, ICON_SEND_DARK, ICON_PLUS, ICON_SETTINGS, ICON_TRASH,
             ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_COPY, ICON_EDIT, ICON_RECALL,
             ICON_RECIPE, ICON_USAGE, ICON_TASK, ICON_SOURCE, ICON_WARNING,
+            ICON_CLOSE, ICON_HISTORY,
             SPINNER_GEARS[0], SPINNER_GEARS[1], SPINNER_GEARS[2], SPINNER_GEARS[3]
     };
 
