@@ -1,19 +1,17 @@
 package com.lumoren.agentchat.tools;
 
 import com.google.gson.JsonObject;
+import com.lumoren.agentchat.config.ConfigManager;
 import com.lumoren.agentchat.model.ToolDefinition;
 import com.lumoren.agentchat.model.ToolResult;
 import net.minecraft.client.Minecraft;
 
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,6 +38,15 @@ public class WebSearchTool implements GameTool {
     private static final Pattern TEXT_BLOCK =
             Pattern.compile("<(?:p|div|span|li)[^>]*>([^<]{20,})</(?:p|div|span|li)>",
                     Pattern.CASE_INSENSITIVE);
+    private final BooleanSupplier webKnowledgeEnabled;
+
+    public WebSearchTool() {
+        this(WebSearchTool::configWebKnowledgeEnabled);
+    }
+
+    WebSearchTool(BooleanSupplier webKnowledgeEnabled) {
+        this.webKnowledgeEnabled = webKnowledgeEnabled;
+    }
 
     @Override
     public String getName() {
@@ -81,6 +88,11 @@ public class WebSearchTool implements GameTool {
     @Override
     public ToolResult execute(Minecraft mc, String arguments) {
         try {
+            if (!webKnowledgeEnabled.getAsBoolean()) {
+                return new ToolResult(NAME,
+                        "Web knowledge is disabled in config; no web search was performed.");
+            }
+
             // Parse the query from arguments JSON
             String query = extractQuery(arguments);
             if (query == null || query.isBlank()) {
@@ -91,28 +103,24 @@ public class WebSearchTool implements GameTool {
 
             // Encode and search
             String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
-
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(5))
-                    .followRedirects(HttpClient.Redirect.NORMAL)
-                    .build();
+            String acceptLanguage = acceptLanguage(mc);
 
             if (deep) {
                 // Deep mode: fetch actual page content from top results
-                List<SearchResult> results = doSearch(client, DDG_HTML_URL + encodedQuery);
+                List<SearchResult> results = doSearch(DDG_HTML_URL + encodedQuery, acceptLanguage);
                 if (results == null || results.isEmpty()) {
-                    results = doSearch(client, BING_URL + encodedQuery);
+                    results = doSearch(BING_URL + encodedQuery, acceptLanguage);
                 }
                 if (results != null && !results.isEmpty()) {
-                    return new ToolResult(NAME, deepSearch(results, query));
+                    return new ToolResult(NAME, deepSearch(results, query, acceptLanguage));
                 }
                 // Fall through to standard search if deep search produced no results
             }
 
             // Standard (non-deep) search
-            String result = trySearch(client, DDG_HTML_URL + encodedQuery, query);
+            String result = trySearch(DDG_HTML_URL + encodedQuery, query, acceptLanguage);
             if (result.startsWith("Search unavailable")) {
-                result = trySearch(client, BING_URL + encodedQuery, query);
+                result = trySearch(BING_URL + encodedQuery, query, acceptLanguage);
             }
             return new ToolResult(NAME, result);
 
@@ -121,29 +129,51 @@ public class WebSearchTool implements GameTool {
         }
     }
 
+    static String acceptLanguage(String languageCode) {
+        String code = languageCode == null ? "" : languageCode.toLowerCase(Locale.ROOT).replace('_', '-');
+        if (code.startsWith("zh")) {
+            return "zh-CN,zh;q=0.9,en;q=0.7";
+        }
+        if (code.startsWith("en")) {
+            return "en-US,en;q=0.9,zh-CN;q=0.4,zh;q=0.3";
+        }
+        if (!code.isBlank()) {
+            return code + "," + code.split("-")[0] + ";q=0.9,en;q=0.7";
+        }
+        return "en-US,en;q=0.9";
+    }
+
+    static String acceptLanguage(Minecraft mc) {
+        if (mc != null) {
+            try {
+                Object languageManager = mc.getClass().getMethod("getLanguageManager").invoke(mc);
+                Object selected = languageManager.getClass().getMethod("getSelected").invoke(languageManager);
+                return acceptLanguage(selected == null ? null : selected.toString());
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+                // Fall through to host locale outside a live Minecraft client.
+            }
+        }
+        return acceptLanguage(Locale.getDefault().toLanguageTag());
+    }
+
+    private static boolean configWebKnowledgeEnabled() {
+        try {
+            return ConfigManager.getInstance().isWebKnowledgeEnabled();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     /**
      * Perform the HTTP request and parse results. Returns the raw list of
      * {@link SearchResult} objects (may be empty on failure).
+     * The fetch goes through {@link WebContentFetcher#httpGet} so scheme,
+     * DNS, redirect, and body-size checks are all enforced.
      */
-    private List<SearchResult> doSearch(HttpClient client, String searchUrl) {
+    private List<SearchResult> doSearch(String searchUrl, String acceptLanguage) {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(searchUrl))
-                    .header("User-Agent",
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-                    .timeout(Duration.ofSeconds(8))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = client.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() != 200) {
-                return new ArrayList<>();
-            }
-
-            return parseResults(response.body());
+            String body = WebContentFetcher.httpGet(searchUrl, 4, acceptLanguage);
+            return parseResults(body);
         } catch (Exception e) {
             return new ArrayList<>();
         }
@@ -152,8 +182,8 @@ public class WebSearchTool implements GameTool {
     /**
      * Try to search with a given URL, return formatted results or error message.
      */
-    private String trySearch(HttpClient client, String searchUrl, String query) {
-        List<SearchResult> results = doSearch(client, searchUrl);
+    private String trySearch(String searchUrl, String query, String acceptLanguage) {
+        List<SearchResult> results = doSearch(searchUrl, acceptLanguage);
 
         if (results.isEmpty()) {
             return "No results found for: " + query;
@@ -166,7 +196,7 @@ public class WebSearchTool implements GameTool {
      * Deep search: for each of the top 3 results with a URL, fetch the actual
      * page content, extract the readable body text, and return combined content.
      */
-    private String deepSearch(List<SearchResult> results, String query) {
+    private String deepSearch(List<SearchResult> results, String query, String acceptLanguage) {
         StringBuilder sb = new StringBuilder();
         sb.append("Deep search results for: ").append(query).append("\n\n");
 
@@ -183,7 +213,7 @@ public class WebSearchTool implements GameTool {
             sb.append("URL: ").append(r.url()).append("\n");
 
             try {
-                String content = WebContentFetcher.fetchAndExtract(r.url(), 10);
+                String content = WebContentFetcher.fetchAndExtract(r.url(), 10, acceptLanguage);
                 sb.append(content).append("\n\n");
             } catch (Exception e) {
                 sb.append("[Failed to fetch: ").append(e.getMessage()).append("]\n\n");

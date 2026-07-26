@@ -89,9 +89,11 @@ public class LocalGuideTextKnowledgeSource implements GuideKnowledgeSource {
 
     private static GuideEvidence readEvidence(Path root, Path file, List<String> terms) {
         try {
-            String content = Files.readString(file, StandardCharsets.UTF_8);
-            String text = extractText(file, content);
-            if (text.isBlank()) {
+            long mtime = Files.getLastModifiedTime(file).toMillis();
+            String cacheKey = "localfile:" + file.toAbsolutePath() + ":" + mtime;
+            String text = com.lumoren.agentchat.guide.cache.GuideTextIndex.getInstance()
+                    .cachedText(cacheKey, () -> readAndExtract(file));
+            if (text == null || text.isBlank()) {
                 return null;
             }
             int score = score(text, terms);
@@ -100,10 +102,22 @@ public class LocalGuideTextKnowledgeSource implements GuideKnowledgeSource {
             }
             GuideEvidence.SourceType sourceType = classify(file);
             String title = root.relativize(file).toString().replace('\\', '/');
+            if (sourceType == GuideEvidence.SourceType.PATCHOULI) {
+                // Honest label: local file scan, not the Patchouli runtime API.
+                title = "Patchouli resource: " + title;
+            }
             String summary = summarize(text, terms);
             return new GuideEvidence(sourceType, title, summary, file.toString(), true);
         } catch (RuntimeException | IOException e) {
             return null;
+        }
+    }
+
+    private static String readAndExtract(Path file) {
+        try {
+            return extractText(file, Files.readString(file, StandardCharsets.UTF_8));
+        } catch (RuntimeException | IOException e) {
+            return "";
         }
     }
 
@@ -114,12 +128,26 @@ public class LocalGuideTextKnowledgeSource implements GuideKnowledgeSource {
                 JsonElement element = JsonParser.parseString(content);
                 List<String> values = new ArrayList<>();
                 collectJsonText(element, values);
-                return String.join("\n", values);
+                return cleanPatchouliMacros(String.join("\n", values));
             } catch (RuntimeException ignored) {
                 return stripSyntax(content);
             }
         }
         return stripSyntax(content);
+    }
+
+    /**
+     * Removes Patchouli inline format macros such as {@code $(l:url)},
+     * {@code $(b)}, {@code $(k:key)} and the {@code $()} reset marker while
+     * keeping the human-readable text they wrap.
+     */
+    static String cleanPatchouliMacros(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        return text.replaceAll("\\$\\([^)]*\\)", " ")
+                .replaceAll("[ \\t]{2,}", " ")
+                .strip();
     }
 
     private static void collectJsonText(JsonElement element, List<String> values) {

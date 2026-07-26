@@ -48,7 +48,12 @@ public class PatchouliKnowledgeSource implements GuideKnowledgeSource {
             try {
                 for (GuideEvidence item : source.query(mc, intent, userText)) {
                     if (item.sourceType() == GuideEvidence.SourceType.PATCHOULI) {
-                        evidence.add(item);
+                        // Label honestly: this evidence comes from a resource
+                        // scan of patchouli_books, not the Patchouli runtime API.
+                        evidence.add(new GuideEvidence(item.sourceType(),
+                                item.title().startsWith("Patchouli resource:")
+                                        ? item.title() : "Patchouli resource: " + item.title(),
+                                item.summary(), item.sourceIdOrUrl(), item.verified()));
                         if (evidence.size() >= MAX_RESULTS) {
                             return evidence;
                         }

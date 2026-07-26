@@ -16,6 +16,7 @@ import net.neoforged.fml.ModList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class ModpackGuideService {
     private final List<GuideKnowledgeSource> sources;
@@ -356,14 +357,23 @@ public class ModpackGuideService {
         sb.append("Health: ").append(ctx.health()).append(", hunger: ").append(ctx.hunger())
                 .append(", biome: ").append(world.biome()).append("\n");
         List<InventoryItem> inventory = ctx.inventory();
-        sb.append("Inventory non-empty slots: ").append(inventory.size()).append("\n");
-        int limit = Math.min(8, inventory.size());
-        for (int i = 0; i < limit; i++) {
-            InventoryItem item = inventory.get(i);
-            sb.append("- ").append(item.itemId()).append(" x").append(item.count()).append("\n");
+        // Merge by item id: the model needs totals and key materials, not raw slots
+        Map<String, Integer> merged = new java.util.LinkedHashMap<>();
+        for (InventoryItem item : inventory) {
+            merged.merge(item.itemId(), item.count(), Integer::sum);
         }
-        if (inventory.size() > limit) {
-            sb.append("- ... ").append(inventory.size() - limit).append(" more stacks");
+        sb.append("Inventory non-empty slots: ").append(inventory.size())
+                .append(", distinct items: ").append(merged.size()).append("\n");
+        int limit = Math.min(12, merged.size());
+        List<Map.Entry<String, Integer>> top = merged.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .limit(limit)
+                .toList();
+        for (Map.Entry<String, Integer> entry : top) {
+            sb.append("- ").append(entry.getKey()).append(" x").append(entry.getValue()).append("\n");
+        }
+        if (merged.size() > limit) {
+            sb.append("- ... ").append(merged.size() - limit).append(" more item types");
         }
         return sb.toString().strip();
     }

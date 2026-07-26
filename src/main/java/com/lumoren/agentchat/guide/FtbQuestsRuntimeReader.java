@@ -19,6 +19,8 @@ import java.util.Optional;
 final class FtbQuestsRuntimeReader {
     private static final int MAX_EVIDENCE = 6;
     private static final int MAX_QUESTS_SCANNED = 240;
+    private static final java.util.concurrent.atomic.AtomicBoolean BRIDGE_FAILURE_LOGGED =
+            new java.util.concurrent.atomic.AtomicBoolean();
 
     List<GuideEvidence> query(Minecraft mc, GuideIntent intent, String userText) {
         if (mc == null || mc.player == null) {
@@ -30,6 +32,11 @@ final class FtbQuestsRuntimeReader {
             Object teamData = teamData(questFile, mc.player);
             return readFromQuestFile(questFile, teamData, intent, userText);
         } catch (ReflectiveOperationException | RuntimeException e) {
+            // Log once per session; do not spam on every guide request.
+            if (BRIDGE_FAILURE_LOGGED.compareAndSet(false, true)) {
+                com.lumoren.agentchat.AgentChat.LOGGER.debug(
+                        "FTB Quests reflection bridge failed; falling back to quest files/resources", e);
+            }
             return List.of(unverified("FTB Quests bridge unavailable",
                     "FTB Quests is installed, but its runtime quest API could not be read safely. Falling back to local quest files/resources."));
         }

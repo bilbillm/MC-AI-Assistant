@@ -109,7 +109,7 @@ class GuideRequestCoordinatorTest {
         assertNotNull(callback.prompt);
         assertTrue(callback.prompt.contains("LocalCtx"));
         assertTrue(callback.prompt.contains("BookPage"));
-        assertTrue(callback.prompt.contains("Web/wiki search:"));
+        assertTrue(callback.prompt.contains("Web search snippets:"));
         assertEquals(List.of(
                 GuideRequestCoordinator.Phase.COLLECTING_LOCAL,
                 GuideRequestCoordinator.Phase.QUERYING_SOURCES,

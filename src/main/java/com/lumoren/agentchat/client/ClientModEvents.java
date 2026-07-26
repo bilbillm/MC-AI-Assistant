@@ -33,4 +33,15 @@ public class ClientModEvents {
     public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(OPEN_CHAT_KEY);
     }
+
+    /**
+     * Invalidates cached guide text whenever resource packs reload, so the
+     * guide never answers from stale patchouli/quest resources.
+     */
+    @SubscribeEvent
+    public static void onRegisterReloadListeners(
+            net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener) resourceManager ->
+                com.lumoren.agentchat.guide.cache.GuideTextIndex.getInstance().invalidateAll());
+    }
 }

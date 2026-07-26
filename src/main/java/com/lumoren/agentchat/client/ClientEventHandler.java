@@ -67,6 +67,10 @@ public class ClientEventHandler {
 
     @SubscribeEvent
     public static void onLevelLoad(LevelEvent.Load event) {
+        if (event.getLevel().isClientSide()) {
+            // Guide text/file caches belong to the previous instance — drop them
+            com.lumoren.agentchat.guide.cache.GuideTextIndex.getInstance().invalidateAll();
+        }
         if (!initialized && event.getLevel().isClientSide()) {
             // Get the current world's save directory, fall back to game directory for safety
             var server = Minecraft.getInstance().getSingleplayerServer();

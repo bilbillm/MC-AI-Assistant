@@ -19,7 +19,9 @@ public final class WebContentFetcher {
 
     private static final HttpClient CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
-            .followRedirects(HttpClient.Redirect.NORMAL)
+            // Redirects are followed manually so every hop is re-validated
+            // against the SSRF rules below.
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
     /** Matches script / style / noscript blocks (including their inner content). */
@@ -53,12 +55,11 @@ public final class WebContentFetcher {
             Pattern.compile("<(nav|header|footer)\\b[^>]*>.*?</\\1>",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
-    /** Maximum response body size (5 MB) to prevent OOM on giant pages. */
-    private static final long MAX_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MB
+    /** Maximum response body size (1 MB) — enforced while streaming, not just via Content-Length. */
+    private static final long MAX_RESPONSE_BYTES = 1024 * 1024; // 1 MB
 
-    /** Matches private/internal IP ranges for SSRF prevention. */
-    private static final Pattern PRIVATE_IP = Pattern.compile(
-            "^(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.|169\\.254\\.|0\\.0\\.0\\.0)");
+    /** Maximum manually-followed redirect hops. */
+    private static final int MAX_REDIRECTS = 3;
 
     private WebContentFetcher() {
         // utility class
@@ -72,7 +73,14 @@ public final class WebContentFetcher {
      * @return extracted body text, truncated to {@link #MAX_CONTENT_CHARS}
      */
     public static String fetchAndExtract(String url, int timeoutSeconds) {
-        String html = httpGet(url, timeoutSeconds);
+        return fetchAndExtract(url, timeoutSeconds, "en-US,en;q=0.9");
+    }
+
+    /**
+     * Fetch a URL with a preferred language and extract readable body text.
+     */
+    public static String fetchAndExtract(String url, int timeoutSeconds, String acceptLanguage) {
+        String html = httpGet(url, timeoutSeconds, acceptLanguage);
         return extractBody(html, MAX_CONTENT_CHARS);
     }
 
@@ -158,64 +166,145 @@ public final class WebContentFetcher {
      * @throws RuntimeException on any HTTP or networking error
      */
     public static String httpGet(String url, int timeoutSeconds) {
-        if (isInternalUrl(url)) {
-            throw new RuntimeException("Internal URL blocked: " + url);
+        return httpGet(url, timeoutSeconds, "en-US,en;q=0.9");
+    }
+
+    /**
+     * Perform an HTTP GET request with an explicit Accept-Language header.
+     * <p>
+     * SSRF hardening: only http/https URLs whose host publicly resolves are
+     * fetched; redirects are followed manually (max {@link #MAX_REDIRECTS})
+     * with each target re-validated; the body is read as a stream with a hard
+     * byte cap instead of trusting Content-Length.
+     */
+    public static String httpGet(String url, int timeoutSeconds, String acceptLanguage) {
+        String current = url;
+        for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+            URI uri = validatePublicUrl(current);
+            HttpResponse<java.io.InputStream> response;
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(uri)
+                        .header("User-Agent",
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                        .header("Accept",
+                                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                        .header("Accept-Language",
+                                acceptLanguage == null || acceptLanguage.isBlank()
+                                        ? "en-US,en;q=0.9" : acceptLanguage)
+                        .timeout(Duration.ofSeconds(timeoutSeconds))
+                        .GET()
+                        .build();
+                response = CLIENT.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            } catch (RuntimeException re) {
+                throw re;
+            } catch (Exception e) {
+                throw new RuntimeException("Fetch failed: " + e.getMessage(), e);
+            }
+
+            int status = response.statusCode();
+            if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+                String location = response.headers().firstValue("Location").orElse(null);
+                closeQuietly(response.body());
+                if (location == null || location.isBlank()) {
+                    throw new RuntimeException("Redirect without Location header (HTTP " + status + ")");
+                }
+                current = uri.resolve(location).toString();
+                continue;
+            }
+            if (status != 200) {
+                closeQuietly(response.body());
+                throw new RuntimeException("HTTP " + status);
+            }
+            try (java.io.InputStream in = response.body()) {
+                return readBounded(in, MAX_RESPONSE_BYTES);
+            } catch (java.io.IOException e) {
+                throw new RuntimeException("Failed reading response body: " + e.getMessage(), e);
+            }
         }
+        throw new RuntimeException("Too many redirects (max " + MAX_REDIRECTS + ")");
+    }
 
+    /**
+     * Reads at most {@code maxBytes} from the stream; throws when the body
+     * exceeds the cap (aborts the download instead of buffering it fully).
+     */
+    private static String readBounded(java.io.InputStream in, long maxBytes) throws java.io.IOException {
+        java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+        byte[] chunk = new byte[8192];
+        long total = 0;
+        int read;
+        while ((read = in.read(chunk)) != -1) {
+            total += read;
+            if (total > maxBytes) {
+                throw new RuntimeException("Response body exceeds " + maxBytes + " bytes; download aborted");
+            }
+            buffer.write(chunk, 0, read);
+        }
+        return buffer.toString(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static void closeQuietly(java.io.InputStream in) {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("User-Agent",
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .header("Accept",
-                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                    .header("Accept-Language", "en-US,en;q=0.9")
-                    .timeout(Duration.ofSeconds(timeoutSeconds))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = CLIENT.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-
-            long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1);
-            if (contentLength > MAX_RESPONSE_BYTES) {
-                throw new RuntimeException("Response too large: " + contentLength
-                        + " bytes (max " + MAX_RESPONSE_BYTES + ")");
+            if (in != null) {
+                in.close();
             }
-
-            if (response.statusCode() != 200) {
-                throw new RuntimeException("HTTP " + response.statusCode());
-            }
-
-            return response.body();
-        } catch (RuntimeException re) {
-            throw re;
-        } catch (Exception e) {
-            throw new RuntimeException("Fetch failed: " + e.getMessage(), e);
+        } catch (java.io.IOException ignored) {
+            // best effort
         }
     }
 
     /**
-     * Check whether a URL targets an internal/private network address.
-     * <p>
-     * Blocks localhost, loopback addresses, and RFC 1918 / link-local IP ranges
-     * to prevent Server-Side Request Forgery (SSRF) attacks.
+     * Validates that a URL is safe to fetch: http/https scheme, a real host,
+     * and DNS resolution that does not point at loopback, private, link-local,
+     * unique-local-IPv6, or multicast addresses.
      *
-     * @param urlString the URL to check
-     * @return {@code true} if the URL is internal or malformed
+     * @return the validated URI
+     * @throws RuntimeException when the URL fails any check
      */
-    private static boolean isInternalUrl(String urlString) {
+    static URI validatePublicUrl(String urlString) {
+        URI uri;
         try {
-            URI uri = new URI(urlString);
-            String host = uri.getHost();
-            if (host == null) return true;
-            String h = host.toLowerCase();
-            if (h.equals("localhost") || h.equals("127.0.0.1")
-                    || h.equals("0.0.0.0") || h.equals("[::1]")) return true;
-            if (PRIVATE_IP.matcher(h).find()) return true;
-            return false;
+            uri = new URI(urlString);
         } catch (Exception e) {
-            return true; // Reject malformed URLs
+            throw new RuntimeException("URL blocked (malformed): " + urlString);
         }
+        String scheme = uri.getScheme();
+        if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
+            throw new RuntimeException("URL blocked (only http/https allowed): " + urlString);
+        }
+        String host = uri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new RuntimeException("URL blocked (no host): " + urlString);
+        }
+        if (host.equalsIgnoreCase("localhost")) {
+            throw new RuntimeException("URL blocked (local host): " + urlString);
+        }
+        java.net.InetAddress[] addresses;
+        try {
+            addresses = java.net.InetAddress.getAllByName(host);
+        } catch (java.net.UnknownHostException e) {
+            throw new RuntimeException("URL blocked (unresolvable host): " + urlString);
+        }
+        for (java.net.InetAddress address : addresses) {
+            if (isPrivateAddress(address)) {
+                throw new RuntimeException("URL blocked (resolves to a private/internal address): " + urlString);
+            }
+        }
+        return uri;
+    }
+
+    static boolean isPrivateAddress(java.net.InetAddress address) {
+        if (address.isLoopbackAddress() || address.isSiteLocalAddress()
+                || address.isLinkLocalAddress() || address.isAnyLocalAddress()
+                || address.isMulticastAddress()) {
+            return true;
+        }
+        // IPv6 unique-local addresses (fc00::/7) are not covered by the checks above
+        if (address instanceof java.net.Inet6Address) {
+            byte[] bytes = address.getAddress();
+            return (bytes[0] & 0xfe) == 0xfc;
+        }
+        return false;
     }
 }
