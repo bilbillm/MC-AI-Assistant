@@ -40,6 +40,21 @@ public class ModpackGuideTool implements GameTool {
             Pattern.compile("[a-z0-9_.-]+:[a-z0-9/._-]+");
 
     private final ModpackGuideService guideService = new ModpackGuideService();
+    private final java.util.function.Function<String, GuideContext> recentContextProvider;
+
+    public ModpackGuideTool() {
+        this(null);
+    }
+
+    /**
+     * @param recentContextProvider supplies the guide context already assembled
+     *                              for the in-flight user request, so this tool
+     *                              does not re-run the whole source aggregation;
+     *                              may be {@code null} (always re-aggregates)
+     */
+    public ModpackGuideTool(java.util.function.Function<String, GuideContext> recentContextProvider) {
+        this.recentContextProvider = recentContextProvider;
+    }
 
     @Override
     public String getName() {
@@ -97,7 +112,11 @@ public class ModpackGuideTool implements GameTool {
             intent = guideService.detectIntent(question);
         }
 
-        GuideContext context = guideService.buildContext(mc, question);
+        GuideContext context = recentContextProvider != null
+                ? recentContextProvider.apply(question) : null;
+        if (context == null) {
+            context = guideService.buildContext(mc, question);
+        }
         ActionCard card = switch (intent) {
             case WHAT_NEXT -> nextStepCard(context);
             case MACHINE_DIAGNOSIS -> diagnosisCard(mc, question, context);

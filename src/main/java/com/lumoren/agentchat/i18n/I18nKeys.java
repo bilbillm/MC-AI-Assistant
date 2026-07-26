@@ -159,6 +159,14 @@ public final class I18nKeys {
     /** 重复点击被忽略 */
     public static final String ACTION_STATUS_IGNORED_DUPLICATE = "agentchat.action.status.ignored_duplicate";
 
+    // ==================== GUIDE PIPELINE ====================
+    /** 向导阶段：收集本地信息 */
+    public static final String GUIDE_PHASE_COLLECTING = "agentchat.guide.phase.collecting";
+    /** 向导阶段：查询指南与任务书 */
+    public static final String GUIDE_PHASE_QUERYING = "agentchat.guide.phase.querying";
+    /** 向导阶段：搜索网络资料 */
+    public static final String GUIDE_PHASE_WEB = "agentchat.guide.phase.web";
+
     // ==================== PROJECT SYSTEM ====================
     /** HUD 项目进度（含参数：名称, 已完成, 总数） */
     public static final String PROJECT_HUD_PROGRESS = "agentchat.project.hud.progress";

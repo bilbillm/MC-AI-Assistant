@@ -1,6 +1,7 @@
 package com.lumoren.agentchat.ui;
 
 import com.lumoren.agentchat.ai.AIChatService;
+import com.lumoren.agentchat.model.ActionCard;
 import com.lumoren.agentchat.model.ChatMessage;
 import com.lumoren.agentchat.model.ConversationThread;
 
@@ -104,7 +105,8 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
         // Must dispatch to main thread — this callback fires from ForkJoinPool
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
             if (!streaming) return; // re-check after dispatch
-            String label = "🔧 " + name;
+            String label = com.lumoren.agentchat.i18n.I18nHelper.translateToString(
+                    com.lumoren.agentchat.i18n.I18nKeys.LOADING_TOOL_CALL, name);
             thread.addMessage(new ChatMessage("tool", label, null, null, null, null));
             notifyUpdate();
         });
@@ -112,8 +114,16 @@ public class StreamingChatRenderer implements AIChatService.ChatCallback {
 
     @Override
     public void onToolResult(String result) {
-        // Tool results are internal — do NOT display in the chat UI
-        // Only the tool call itself (🔧 name) is shown via onToolCall
+        if (!streaming) return;
+        ActionCard card = ActionCard.fromToolResultContent(result);
+        if (card == null) {
+            return;
+        }
+        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            if (!streaming) return;
+            thread.addMessage(new ChatMessage("tool", result, null, null, null, null));
+            notifyUpdate();
+        });
     }
 
     @Override

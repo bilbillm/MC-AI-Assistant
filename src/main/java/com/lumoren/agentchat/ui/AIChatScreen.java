@@ -75,6 +75,9 @@ public class AIChatScreen extends Screen {
     private final ModpackGuideService guideService = new ModpackGuideService();
     private final AssistantActionExecutor actionExecutor =
             new AssistantActionExecutor(Minecraft::getInstance, new JeiGuiBridge());
+    private final com.lumoren.agentchat.guide.GuideRequestCoordinator guideCoordinator =
+            ClientServiceManager.getGuideCoordinator();
+    private long activeGuideRequestId = -1;
 
     // ==================== Project system ====================
     private boolean projectJustCompleted;
@@ -82,7 +85,6 @@ public class AIChatScreen extends Screen {
     private String pendingProjectName;
     private List<Task> pendingTasks;
     private String pendingPlanningPrompt; // injected into API call, NOT displayed in UI
-    private String pendingGuidePrompt; // injected into API call, NOT displayed in UI
 
     public AIChatScreen() {
         super(I18nHelper.translate(I18nKeys.TITLE));
@@ -183,6 +185,8 @@ public class AIChatScreen extends Screen {
 
     private void switchToThread(ConversationThread t) {
         if (t.getId().equals(thread.getId())) return;
+        cancelPendingGuideRequest();
+        sending = false; // a cancelled guide request never completes — unblock input
         var mgr = ConversationManager.getInstance();
         if (mgr != null) {
             mgr.save();
@@ -191,6 +195,13 @@ public class AIChatScreen extends Screen {
         thread = t;
         streamer = new StreamingChatRenderer(thread, this::onStreamUpdate);
         rebuildLayout();
+    }
+
+    private void cancelPendingGuideRequest() {
+        if (activeGuideRequestId >= 0) {
+            guideCoordinator.cancel(activeGuideRequestId);
+            activeGuideRequestId = -1;
+        }
     }
 
     private void rebuildLayout() {
@@ -249,6 +260,7 @@ public class AIChatScreen extends Screen {
 
     @Override
     public void onClose() {
+        cancelPendingGuideRequest();
         var mgr = ConversationManager.getInstance();
         if (mgr != null) mgr.save();
         if (messageList != null) savedMessageScroll = messageList.getScrollOffset();
@@ -261,6 +273,8 @@ public class AIChatScreen extends Screen {
     }
 
     private void onNewChat(Button b) {
+        cancelPendingGuideRequest();
+        sending = false;
         var mgr = ConversationManager.getInstance();
         if (mgr != null) {
             mgr.save();
@@ -283,10 +297,8 @@ public class AIChatScreen extends Screen {
     private void onToggleGuideMode(Button b) {
         guideMode = !guideMode;
         b.setMessage(guideModeLabel());
-        String status = I18nHelper.translateToString(guideMode
-                ? I18nKeys.STATUS_GUIDE_ENABLED : I18nKeys.STATUS_CHAT_ENABLED);
-        thread.addMessage(ChatMessage.system(status));
-        refreshProjectUI();
+        // Mode is a session-only UI state; never pollute the persisted
+        // conversation history with mode-switch system messages.
     }
 
     private Component guideModeLabel() {
@@ -298,6 +310,8 @@ public class AIChatScreen extends Screen {
         var mgr = ConversationManager.getInstance();
         if (mgr == null) return;
         if (thread != null) {
+            cancelPendingGuideRequest();
+            sending = false;
             mgr.deleteThread(thread.getId());
             thread = mgr.getCurrentThread();
             if (thread == null) thread = mgr.createThread();
@@ -425,10 +439,6 @@ public class AIChatScreen extends Screen {
         // Check project intent (may inject system message into thread)
         checkProjectIntent(text);
 
-        if (guideService.shouldEnhance(text, guideMode)) {
-            pendingGuidePrompt = guideService.buildGuidePrompt(Minecraft.getInstance(), text, guideMode);
-        }
-
         // Track first message for auto-rename
         if (thread.messageCount() == 0) {
             firstUserMessage = text;
@@ -439,6 +449,51 @@ public class AIChatScreen extends Screen {
         streamer.startStreaming();
         messageList.resetAutoScroll();
         autoSave();
+
+        if (guideService.shouldEnhance(text, guideMode)) {
+            // Async guide pipeline: snapshot on this thread, file/web work on
+            // background executor, then completeSend on the main thread.
+            ConversationThread requestThread = thread;
+            boolean webEnabled = ConfigManager.getInstance().isWebKnowledgeEnabled();
+            activeGuideRequestId = guideCoordinator.request(Minecraft.getInstance(), text, guideMode,
+                    webEnabled, new com.lumoren.agentchat.guide.GuideRequestCoordinator.Callback() {
+                        @Override
+                        public void onPhase(com.lumoren.agentchat.guide.GuideRequestCoordinator.Phase phase) {
+                            streamer.onThinking(switch (phase) {
+                                case COLLECTING_LOCAL -> I18nHelper.translateToString(I18nKeys.GUIDE_PHASE_COLLECTING);
+                                case QUERYING_SOURCES -> I18nHelper.translateToString(I18nKeys.GUIDE_PHASE_QUERYING);
+                                case SEARCHING_WEB -> I18nHelper.translateToString(I18nKeys.GUIDE_PHASE_WEB);
+                            });
+                        }
+
+                        @Override
+                        public void onReady(long requestId, String guideSystemPrompt) {
+                            completeSend(text, guideSystemPrompt, requestId, requestThread);
+                        }
+
+                        @Override
+                        public void onFailed(long requestId, String reason) {
+                            completeSend(text, null, requestId, requestThread);
+                        }
+                    });
+            return;
+        }
+
+        completeSend(text, null, -1, thread);
+    }
+
+    /**
+     * Final send stage: augments API history with pending planning/guide
+     * prompts and hands off to the chat service. Stale guide callbacks
+     * (cancelled, superseded, or from a different conversation thread) are
+     * dropped here.
+     */
+    private void completeSend(String text, String guidePrompt, long requestId,
+                              ConversationThread requestThread) {
+        if (requestId >= 0 && requestId != activeGuideRequestId) return; // superseded
+        if (thread != requestThread) return; // thread switched while gathering
+        activeGuideRequestId = -1;
+
         List<ChatMessage> history = thread.getMessages().subList(0, thread.getMessages().size() - 1);
 
         // Inject pending project planning prompt into API history (not visible in UI)
@@ -448,11 +503,10 @@ public class AIChatScreen extends Screen {
             history = augmented;
             pendingPlanningPrompt = null;
         }
-        if (pendingGuidePrompt != null) {
+        if (guidePrompt != null) {
             List<ChatMessage> augmented = new java.util.ArrayList<>(history);
-            augmented.add(ChatMessage.system(pendingGuidePrompt));
+            augmented.add(ChatMessage.system(guidePrompt));
             history = augmented;
-            pendingGuidePrompt = null;
         }
 
         chatService.sendMessage(text, history, streamer);
@@ -477,6 +531,7 @@ public class AIChatScreen extends Screen {
             streamer.abort();
             sending = false;
         }
+        cancelPendingGuideRequest();
 
         thread.removeMessagesFrom(index);
         selectedMessageUuid = null;

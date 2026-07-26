@@ -4,11 +4,19 @@ import com.lumoren.agentchat.ai.AIChatService;
 import com.lumoren.agentchat.ai.OpenAICompatClient;
 import com.lumoren.agentchat.ai.ToolCallDispatcher;
 import com.lumoren.agentchat.config.ConfigManager;
+import com.lumoren.agentchat.tools.FindBiomeTool;
 import com.lumoren.agentchat.tools.GameInfoTool;
 import com.lumoren.agentchat.tools.InventoryTool;
+import com.lumoren.agentchat.tools.InspectTargetBlockTool;
 import com.lumoren.agentchat.tools.MaterialCalculatorTool;
 import com.lumoren.agentchat.tools.ItemEncyclopediaTool;
 import com.lumoren.agentchat.tools.ModListTool;
+import com.lumoren.agentchat.tools.ModpackGuideTool;
+import com.lumoren.agentchat.tools.NearbyBlocksTool;
+import com.lumoren.agentchat.tools.NearbyEntitiesTool;
+import com.lumoren.agentchat.tools.CreateWaypointTool;
+import com.lumoren.agentchat.tools.OpenItemRecipeTool;
+import com.lumoren.agentchat.tools.OpenItemUsageTool;
 import com.lumoren.agentchat.tools.PositionTool;
 import com.lumoren.agentchat.tools.ProjectTool;
 import com.lumoren.agentchat.tools.ReadWebpageTool;
@@ -20,8 +28,6 @@ import com.lumoren.agentchat.tools.WorldStateTool;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
-import java.util.function.Consumer;
-
 /**
  * Singleton service manager that provides shared instances of {@link AIChatService}
  * and its dependencies to UI components.
@@ -32,6 +38,7 @@ public final class ClientServiceManager {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static AIChatService chatService;
+    private static com.lumoren.agentchat.guide.GuideRequestCoordinator guideCoordinator;
 
     private ClientServiceManager() {
     }
@@ -51,6 +58,18 @@ public final class ClientServiceManager {
     }
 
     /**
+     * Shared asynchronous guide pipeline. The chat screen posts guide
+     * requests here; the modpack_guide tool reuses its assembled context.
+     */
+    public static synchronized com.lumoren.agentchat.guide.GuideRequestCoordinator getGuideCoordinator() {
+        if (guideCoordinator == null) {
+            guideCoordinator = com.lumoren.agentchat.guide.GuideRequestCoordinator.createDefault(
+                    new com.lumoren.agentchat.guide.ModpackGuideService(), mainThreadExecutor());
+        }
+        return guideCoordinator;
+    }
+
+    /**
      * Reinitialize the chat service (e.g. after config changes).
      */
     public static synchronized void reset() {
@@ -64,18 +83,9 @@ public final class ClientServiceManager {
         ToolRegistry toolRegistry = createToolRegistry();
         ToolCallDispatcher dispatcher = new ToolCallDispatcher(toolRegistry);
 
-        // Use Minecraft's main thread executor for streaming callbacks
-        Consumer<Runnable> mainThreadExecutor = r -> {
-            if (net.minecraft.client.Minecraft.getInstance() != null) {
-                net.minecraft.client.Minecraft.getInstance().execute(r);
-            } else {
-                r.run();
-            }
-        };
-
         OpenAICompatClient client = new OpenAICompatClient(
                 ConfigManager.getInstance(),
-                mainThreadExecutor
+                mainThreadExecutor()::execute
         );
 
         LOGGER.info("AIChatService initialized with {} tools: {}",
@@ -83,6 +93,19 @@ public final class ClientServiceManager {
                 toolRegistry.getAll().stream().map(t -> t.getName()).toList());
 
         return new AIChatService(client, dispatcher, toolRegistry);
+    }
+
+    /**
+     * Use Minecraft's main thread executor for streaming/guide callbacks.
+     */
+    private static java.util.concurrent.Executor mainThreadExecutor() {
+        return r -> {
+            if (net.minecraft.client.Minecraft.getInstance() != null) {
+                net.minecraft.client.Minecraft.getInstance().execute(r);
+            } else {
+                r.run();
+            }
+        };
     }
 
     /**
@@ -100,8 +123,16 @@ public final class ClientServiceManager {
         registry.register(new ModListTool());
         registry.register(new GameInfoTool());
         registry.register(new ProjectTool());
+        registry.register(new CreateWaypointTool());
+        registry.register(new OpenItemRecipeTool());
+        registry.register(new OpenItemUsageTool());
         registry.register(new ReadWebpageTool());
         registry.register(new MaterialCalculatorTool());
+        registry.register(new NearbyEntitiesTool());
+        registry.register(new NearbyBlocksTool());
+        registry.register(new FindBiomeTool());
+        registry.register(new InspectTargetBlockTool());
+        registry.register(new ModpackGuideTool(getGuideCoordinator()::latestContextFor));
         return registry;
     }
 }
