@@ -5,7 +5,7 @@ package com.lumoren.agentchat.model;
  * <p>
  * 表示玩家背包中的单个物品槽位，包含物品 ID、显示名称、数量及耐久度信息。
  *
- * @param slot          背包槽位索引（0-35 主背包，36-39 快捷栏）
+ * @param slot          背包槽位索引（0-8 快捷栏，9-35 主背包，36-39 盔甲，40 副手）
  * @param itemId        物品标识符（如 "minecraft:diamond_sword"）
  * @param displayName   显示名称（可为中文，如 "钻石剑"）
  * @param count         物品堆叠数量

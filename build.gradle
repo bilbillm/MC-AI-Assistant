@@ -30,6 +30,9 @@ neoForge {
     runs {
         client {
             client()
+            // Auto-join the dev world for runtime acceptance testing.
+            // Remove or comment out to boot to the title screen instead.
+            programArguments.addAll '--quickPlaySingleplayer', 'New World'
         }
         data {
             data()
@@ -46,12 +49,16 @@ neoForge {
 
 repositories {
     maven { url = "https://maven.blamejared.com" }
+    maven { url = "https://chocolateminecraft.com/maven"; name = "Xaero" }
 }
 
 dependencies {
     // JEI API (compile-only for main, testImplementation for test classpath)
     compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
     testImplementation "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
+
+    // Xaero's Minimap API (compile-only, mod works without it)
+    compileOnly "xaero.minimap:xaerominimap-neoforge-1.21.1:25.3.13"
 
     // Test dependencies
     testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"

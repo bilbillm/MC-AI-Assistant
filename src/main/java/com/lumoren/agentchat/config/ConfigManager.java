@@ -23,6 +23,8 @@ public class ConfigManager {
     public int getMaxHistory() { return Config.MAX_HISTORY.get(); }
     public int getTimeout() { return Config.TIMEOUT.get(); }
     public int getProjectTrackInterval() { return Config.PROJECT_TRACK_INTERVAL.get(); }
+    public boolean isGuideModeDefault() { return Config.GUIDE_MODE_DEFAULT.get(); }
+    public boolean isWebKnowledgeEnabled() { return Config.WEB_KNOWLEDGE_ENABLED.get(); }
     public String getApiKey() { return secrets.getApiKey(); }
     public boolean hasApiKey() { return secrets.getApiKey() != null && !secrets.getApiKey().isBlank(); }
     public SecretsConfig getSecrets() { return secrets; }

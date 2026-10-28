@@ -2,9 +2,12 @@ package com.lumoren.agentchat.tools;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.lumoren.agentchat.config.ConfigManager;
 import com.lumoren.agentchat.model.ToolDefinition;
 import com.lumoren.agentchat.model.ToolResult;
 import net.minecraft.client.Minecraft;
+
+import java.util.function.BooleanSupplier;
 
 public class ReadWebpageTool implements GameTool {
 
@@ -12,6 +15,21 @@ public class ReadWebpageTool implements GameTool {
     private static final String DESCRIPTION =
             "Fetch and read the content of a web page. Extracts the main text content. "
             + "Use after web_search to read specific result pages in depth.";
+    private final BooleanSupplier webKnowledgeEnabled;
+    private final PageFetcher pageFetcher;
+
+    public ReadWebpageTool() {
+        this(ReadWebpageTool::configWebKnowledgeEnabled);
+    }
+
+    ReadWebpageTool(BooleanSupplier webKnowledgeEnabled) {
+        this(webKnowledgeEnabled, WebContentFetcher::fetchAndExtract);
+    }
+
+    ReadWebpageTool(BooleanSupplier webKnowledgeEnabled, PageFetcher pageFetcher) {
+        this.webKnowledgeEnabled = webKnowledgeEnabled;
+        this.pageFetcher = pageFetcher;
+    }
 
     @Override
     public String getName() {
@@ -46,6 +64,11 @@ public class ReadWebpageTool implements GameTool {
     @Override
     public ToolResult execute(Minecraft mc, String arguments) {
         try {
+            if (!webKnowledgeEnabled.getAsBoolean()) {
+                return new ToolResult(NAME,
+                        "Web knowledge is disabled in config; no webpage was fetched.");
+            }
+
             JsonObject args = new com.google.gson.Gson().fromJson(arguments, JsonObject.class);
             String url = args.get("url").getAsString();
 
@@ -58,10 +81,22 @@ public class ReadWebpageTool implements GameTool {
                 url = "https://" + url;
             }
 
-            String content = WebContentFetcher.fetchAndExtract(url, 10);
+            String content = pageFetcher.fetch(url, 10, WebSearchTool.acceptLanguage(mc));
             return new ToolResult(NAME, content);
         } catch (Exception e) {
             return new ToolResult(NAME, "Failed to read page: " + e.getMessage());
         }
+    }
+
+    private static boolean configWebKnowledgeEnabled() {
+        try {
+            return ConfigManager.getInstance().isWebKnowledgeEnabled();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    interface PageFetcher {
+        String fetch(String url, int timeoutSeconds, String acceptLanguage);
     }
 }

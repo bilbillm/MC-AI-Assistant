@@ -198,34 +198,39 @@ public class AIChatService {
 
         client.chatCompletionWithTools(conversation, tools)
             .thenAccept(response -> {
-                runOnMainThread(() -> {
-                    if (cancelled) return;
+                if (cancelled) return;
 
-                    if (response.toolCalls() != null && !response.toolCalls().isEmpty()) {
-                        // AI requested tool calls - add assistant message to history and execute tools
-                        conversation.add(response);
+                if (response.toolCalls() != null && !response.toolCalls().isEmpty()) {
+                    // AI requested tool calls - add assistant message to history
+                    conversation.add(response);
 
-                        // Show content text that appears between tool calls
+                    // Display content text + tool call notifications on main thread
+                    runOnMainThread(() -> {
                         if (response.content() != null && !response.content().isBlank()) {
                             callback.onAssistantMessage(response.content());
                         }
-
                         for (ChatMessage.ToolCall tc : response.toolCalls()) {
                             callback.onThinking("querying " + tc.function().name() + "...");
                             callback.onToolCall(tc.function().name(), tc.function().arguments());
                         }
+                    });
 
-                        List<ChatMessage> toolResults = dispatcher.executeToolCalls(
-                            response.toolCalls(), Minecraft.getInstance()
-                        );
-                        conversation.addAll(toolResults);
+                    // Execute tools on ForkJoinPool (background) — network I/O tools
+                    // like web_search must NOT block the render thread.
+                    List<ChatMessage> toolResults = dispatcher.executeToolCalls(
+                        response.toolCalls(), Minecraft.getInstance()
+                    );
+                    conversation.addAll(toolResults);
 
+                    // Display tool results on main thread
+                    runOnMainThread(() -> {
                         for (ChatMessage tr : toolResults) {
                             callback.onToolResult(tr.content());
                         }
+                    });
 
-                        // Continue the loop with updated history
-                        runConversationLoop(conversation, callback, round + 1);
+                    // Continue the loop with updated history
+                    runConversationLoop(conversation, callback, round + 1);
                     } else {
                         // No tool calls - stream the final text response to the user
                         ToolCallFilter xmlFilter = new ToolCallFilter();
@@ -271,7 +276,6 @@ public class AIChatService {
                             }
                         });
                     }
-                });
             })
             .exceptionally(throwable -> {
                 Throwable cause = unwrap(throwable);

@@ -1,7 +1,15 @@
 package com.lumoren.agentchat.i18n;
 
+import com.google.gson.JsonParser;
+
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * 国际化工具类，封装 Minecraft 的 {@link Component#translatable(String, Object...)}。
@@ -10,6 +18,8 @@ import net.minecraft.network.chat.MutableComponent;
  * 翻译键定义见 {@link I18nKeys}，语言文件见 {@code assets/agentchat/lang/*.json}。
  */
 public final class I18nHelper {
+    private static final String FALLBACK_LANG = "/assets/agentchat/lang/en_us.json";
+    private static volatile Map<String, String> fallbackTranslations;
 
     private I18nHelper() {
         // 工具类，禁止实例化
@@ -44,6 +54,45 @@ public final class I18nHelper {
      * @return 翻译后的纯文本字符串
      */
     public static String translateToString(String key, Object... args) {
-        return Component.translatable(key, args).getString();
+        String translated = Component.translatable(key, args).getString();
+        if (!key.equals(translated)) {
+            return translated;
+        }
+        String template = fallbackTranslations().get(key);
+        if (template == null) {
+            return translated;
+        }
+        if (args == null || args.length == 0) {
+            return template;
+        }
+        try {
+            return String.format(Locale.ROOT, template, args);
+        } catch (RuntimeException e) {
+            return template;
+        }
+    }
+
+    private static Map<String, String> fallbackTranslations() {
+        Map<String, String> cached = fallbackTranslations;
+        if (cached != null) {
+            return cached;
+        }
+        Map<String, String> loaded = new HashMap<>();
+        try (var in = I18nHelper.class.getResourceAsStream(FALLBACK_LANG)) {
+            if (in != null) {
+                try (var reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+                    var root = JsonParser.parseReader(reader).getAsJsonObject();
+                    for (var entry : root.entrySet()) {
+                        if (!entry.getValue().isJsonNull()) {
+                            loaded.put(entry.getKey(), entry.getValue().getAsString());
+                        }
+                    }
+                }
+            }
+        } catch (RuntimeException | java.io.IOException ignored) {
+            // Minecraft language data remains the primary source in live clients.
+        }
+        fallbackTranslations = Map.copyOf(loaded);
+        return fallbackTranslations;
     }
 }

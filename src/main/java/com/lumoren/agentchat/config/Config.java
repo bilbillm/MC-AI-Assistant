@@ -13,6 +13,8 @@ public class Config {
     public static final ModConfigSpec.IntValue MAX_HISTORY;
     public static final ModConfigSpec.IntValue TIMEOUT;
     public static final ModConfigSpec.IntValue PROJECT_TRACK_INTERVAL;
+    public static final ModConfigSpec.BooleanValue GUIDE_MODE_DEFAULT;
+    public static final ModConfigSpec.BooleanValue WEB_KNOWLEDGE_ENABLED;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -46,6 +48,14 @@ public class Config {
         PROJECT_TRACK_INTERVAL = builder
                 .comment("Tick interval for project progress tracking (5-100). Default 20 = 1 second")
                 .defineInRange("projectTrackInterval", 20, 5, 100);
+
+        GUIDE_MODE_DEFAULT = builder
+                .comment("Open the chat screen in Guide mode by default")
+                .define("guideModeDefault", false);
+
+        WEB_KNOWLEDGE_ENABLED = builder
+                .comment("Allow the guide to use web/wiki knowledge when local game data is insufficient")
+                .define("webKnowledgeEnabled", true);
 
         builder.pop();
         SPEC = builder.build();
